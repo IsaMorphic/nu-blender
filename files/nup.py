@@ -6,27 +6,27 @@ from .read import *
 
 
 class Nup:
+    HEADER_SIZE = 0x40
+
     def __init__(self, data):
+        header = NupHeader(data)
         body = data[0x40:]
 
-        strings_offset = read_u32(data, 0x04)
-
         # Load textures.
-        texture_hdr_offset = read_u32(data, 0x08)
-        texture_data_offset = read_u32(body, texture_hdr_offset)
-        texture_data_size = read_u32(body, texture_hdr_offset + 0x04)
-        textures_count = read_i32(body, texture_hdr_offset + 0x08)
+        texture_data_offset = read_u32(body, header.texture_hdr_offset)
+        texture_data_size = read_u32(body, header.texture_hdr_offset + 0x04)
+        textures_count = read_i32(body, header.texture_hdr_offset + 0x08)
 
         self.textures = []
         for i in range(textures_count):
-            texture_offset = read_u32(body, texture_hdr_offset + 0x1C + i * 0x14)
+            texture_offset = read_u32(body, header.texture_hdr_offset + 0x1C + i * 0x14)
 
             # Texture size is not stored in the file, so we need to calculate a
             # rough size from the offset of each texture. This works because
             # textures are stored contiguously.
             if i < textures_count - 1:
                 next_texture_offset = read_u32(
-                    body, texture_hdr_offset + 0x1C + (i + 1) * 0x14
+                    body, header.texture_hdr_offset + 0x1C + (i + 1) * 0x14
                 )
 
                 size_estimate = next_texture_offset - texture_offset
@@ -34,35 +34,39 @@ class Nup:
                 size_estimate = texture_data_size - texture_offset
 
             offset_in_body = (
-                texture_hdr_offset + 0x0C + texture_data_offset + texture_offset
+                header.texture_hdr_offset + 0x0C + texture_data_offset + texture_offset
             )
 
-            self.textures.append(
-                DdsTexture(body[offset_in_body : offset_in_body + size_estimate])
-            )
+            self.textures.append(DdsTexture(body, offset_in_body, size_estimate))
 
         # Load materials.
-        materials_offset = read_u32(data, 0x0C)
-        materials_count = read_i32(body, materials_offset)
+        materials_count = read_i32(body, header.materials_offset)
 
         self.materials = []
         for i in range(materials_count):
-            material_offset = read_u32(body, materials_offset + 0x04 + i * 0x04)
+            material_offset = read_u32(body, header.materials_offset + 0x04 + i * 0x04)
 
             self.materials.append(NuMaterial(body, material_offset))
 
         # Load vertex data.
-        vertex_data_offset = read_u32(data, 0x14)
-        vertex_bufs_count = read_i32(body, vertex_data_offset)
+        vertex_bufs_count = read_i32(body, header.vertex_data_offset)
 
         vertex_bufs = [
-            read_vertices(i, vertex_data_offset, body) for i in range(vertex_bufs_count)
+            read_vertices(i, header.vertex_data_offset, body)
+            for i in range(vertex_bufs_count)
         ]
 
-        scene_offset = read_u32(data, 0x18)
-        instances_offset = read_u32(data, 0x1C)
+        self.scene = NuScene(body, header.scene_offset, header, vertex_bufs)
 
-        self.scene = NuScene(body[scene_offset:], body, instances_offset, vertex_bufs)
+
+class NupHeader:
+    def __init__(self, data):
+        self.texture_hdr_offset = read_u32(data, 0x08)
+        self.materials_offset = read_u32(data, 0x0C)
+
+        self.vertex_data_offset = read_u32(data, 0x14)
+        self.scene_offset = read_u32(data, 0x18)
+        self.instances_offset = read_u32(data, 0x1C)
 
 
 class RtlSet:
@@ -78,23 +82,21 @@ class RtlSet:
 
         self.lights = []
         for i in range(rtl_count):
-            self.lights.append(
-                Rtl(data[0x04 + i * Rtl.SIZE : 0x04 + (i + 1) * Rtl.SIZE])
-            )
+            self.lights.append(Rtl(data, 0x04 + i * Rtl.SIZE))
 
 
 class Rtl:
     SIZE = 0x8C
 
-    def __init__(self, data):
-        self.type = RtlType(read_u8(data, 0x58))
+    def __init__(self, data, offset):
+        self.type = RtlType(read_u8(data, offset + 0x58))
 
         if self.type == RtlType.POINT:
-            self.pos = NuVec(data, 0x00)
+            self.pos = NuVec(data, offset + 0x00)
         elif self.type == RtlType.DIRECTIONAL:
-            self.dir = NuVec(data, 0x0C)
+            self.dir = NuVec(data, offset + 0x0C)
 
-        self.colour = NuColour3(data, 0x18)
+        self.colour = NuColour3(data, offset + 0x18)
 
 
 class RtlType(Enum):
@@ -110,54 +112,47 @@ class RtlType(Enum):
 
 
 class NuScene:
-    def __init__(self, data, body, instances_offset, vertex_bufs):
-        objects_count = read_i32(data, 0x10)
-        objects_offset = read_u32(data, 0x14)
+    def __init__(self, data, offset, header, vertex_bufs):
+        objects_count = read_i32(data, offset + 0x10)
+        objects_offset = read_u32(data, offset + 0x14)
 
         self.objects = []
         for i in range(objects_count):
             objects_offset_i = objects_offset + i * 4
-            object_offset = read_u32(body, objects_offset_i)
+            object_offset = read_u32(data, objects_offset_i)
 
             self.objects.append(
                 NuObject(
-                    body[object_offset : object_offset + NuObject.SIZE],
-                    body,
+                    data,
+                    object_offset,
                     vertex_bufs,
                 )
             )
 
-        instances_count = read_i32(data, 0x18)
+        instances_count = read_i32(data, offset + 0x18)
 
         self.instances = []
         for i in range(instances_count):
-            instances_offset_i = instances_offset + i * NuInstance.SIZE
+            instances_offset_i = header.instances_offset + i * NuInstance.SIZE
 
-            self.instances.append(
-                NuInstance(
-                    body[instances_offset_i : instances_offset_i + NuInstance.SIZE],
-                    body,
-                )
-            )
+            self.instances.append(NuInstance(data, instances_offset_i))
 
-        splines_count = read_i32(data, 0x28)
-        splines_offset = read_u32(data, 0x2C)
+        splines_count = read_i32(data, offset + 0x28)
+        splines_offset = read_u32(data, offset + 0x2C)
 
         self.splines = []
         for i in range(splines_count):
             splines_offset_i = splines_offset + i * NuSpline.SIZE
 
-            self.splines.append(NuSpline(body, splines_offset_i))
+            self.splines.append(NuSpline(data, splines_offset_i))
 
 
 class NuObject:
     SIZE = 0x70
 
-    def __init__(self, data, body, vertex_bufs):
-        geom_offset = read_u32(data, 0x0C)
-        self.geom = NuGeom(
-            body[geom_offset : geom_offset + NuGeom.SIZE], body, vertex_bufs
-        )
+    def __init__(self, data, offset, vertex_bufs):
+        geom_offset = read_u32(data, offset + 0x0C)
+        self.geom = NuGeom(data, geom_offset, vertex_bufs)
 
 
 class NuInstance:
@@ -165,20 +160,20 @@ class NuInstance:
 
     anim = None
 
-    def __init__(self, data, body):
-        self.transform = NuMtx(data[0x00:0x40])
-        self.obj_idx = read_i16(data, 0x40)
+    def __init__(self, data, offset):
+        self.transform = NuMtx(data, offset)
+        self.obj_idx = read_i16(data, offset + 0x40)
 
-        anim_offset = read_u32(data, 0x48)
+        anim_offset = read_u32(data, offset + 0x48)
         if anim_offset != 0:
-            self.anim = NuInstAnim(body[anim_offset : anim_offset + NuInstAnim.SIZE])
+            self.anim = NuInstAnim(data, anim_offset)
 
 
 class NuInstAnim:
     SIZE = 0x60
 
-    def __init__(self, data):
-        self.mtx = NuMtx(data[0x00 : NuMtx.SIZE])
+    def __init__(self, data, offset):
+        self.mtx = NuMtx(data, offset)
 
 
 class NuSpline:

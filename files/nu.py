@@ -30,29 +30,25 @@ class NuGeom:
 
     next = None
 
-    def __init__(self, data, body, vertex_bufs):
-        next_offset = read_u32(data, 0x00)
+    def __init__(self, data, offset, vertex_bufs):
+        next_offset = read_u32(data, offset + 0x00)
         if next_offset != 0:
-            self.next = NuGeom(
-                body[next_offset : next_offset + NuGeom.SIZE], body, vertex_bufs
-            )
+            self.next = NuGeom(data, next_offset, vertex_bufs)
 
-        self.material_idx = read_u32(data, 0x08)
+        self.material_idx = read_u32(data, offset + 0x08)
 
-        vertex_type = NuVtxType(read_u32(data, 0x0C))
+        vertex_type = NuVtxType(read_u32(data, offset + 0x0C))
 
-        vertex_buf_idx = read_i32(data, 0x1C)
+        vertex_buf_idx = read_i32(data, offset + 0x1C)
         vertex_buf = vertex_bufs[vertex_buf_idx - 1]
 
         self.vertices = []
         if vertex_type == NuVtxType.TC1:
             for i in range(len(vertex_buf) // NuVtxTc1.SIZE):
-                self.vertices.append(
-                    NuVtxTc1(vertex_buf[i * NuVtxTc1.SIZE : (i + 1) * NuVtxTc1.SIZE])
-                )
+                self.vertices.append(NuVtxTc1(vertex_buf, i * NuVtxTc1.SIZE))
 
-        prim_offset = read_u32(data, 0x30)
-        self.prim = NuPrim(body[prim_offset : prim_offset + NuPrim.SIZE], body)
+        prim_offset = read_u32(data, offset + 0x30)
+        self.prim = NuPrim(data, prim_offset)
 
 
 class NuVtxType(Enum):
@@ -64,19 +60,19 @@ class NuPrim:
 
     next = None
 
-    def __init__(self, data, body):
-        next_offset = read_u32(data, 0x00)
+    def __init__(self, data, offset):
+        next_offset = read_u32(data, offset + 0x00)
         if next_offset != 0:
-            self.next = NuPrim(body[next_offset : next_offset + NuPrim.SIZE], body)
+            self.next = NuPrim(body, next_offset)
 
-        self.type = NuPrimType(read_u32(data, 0x04))
+        self.type = NuPrimType(read_u32(data, offset + 0x04))
 
-        indices_count = read_u16(data, 0x08)
-        indices_offset = read_u32(data, 0x0C)
+        indices_count = read_u16(data, offset + 0x08)
+        indices_offset = read_u32(data, offset + 0x0C)
 
         self.index_buf = []
         for i in range(indices_count):
-            self.index_buf.append(read_u16(body, indices_offset + i * 2))
+            self.index_buf.append(read_u16(data, indices_offset + i * 2))
 
 
 class NuPrimType(Enum):
@@ -92,7 +88,7 @@ class NuPrimType(Enum):
 class NuMtx:
     SIZE = 0x40
 
-    def __init__(self, data):
+    def __init__(self, data, offset):
         self.rows = []
         for row in range(4):
             self.rows.append([])
@@ -100,7 +96,7 @@ class NuMtx:
             for col in range(4):
                 i = row * 4 + col
 
-                self.rows[row].append(read_f32(data, i * 4))
+                self.rows[row].append(read_f32(data, offset + i * 4))
 
 
 class NuVec:
@@ -118,13 +114,13 @@ class NuVec:
 class NuVtxTc1:
     SIZE = 0x24
 
-    def __init__(self, data):
-        self.position = NuVec(data, 0x00)
-        self.normal = NuVec(data, 0x0C)
-        self.colour = NuColour32(data, 0x18)
+    def __init__(self, data, offset):
+        self.position = NuVec(data, offset)
+        self.normal = NuVec(data, offset + 0x0C)
+        self.colour = NuColour32(data, offset + 0x18)
         self.uv = [
-            read_f32(data, 0x1C),
-            read_f32(data, 0x20),
+            read_f32(data, offset + 0x1C),
+            read_f32(data, offset + 0x20),
         ]
 
 
