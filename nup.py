@@ -305,9 +305,20 @@ def import_nup(context, filepath):
         if blend_light is not None:
             obj = bpy.data.objects.new("Light", blend_light)
 
-            # TODO: Rotate the object for directional lights.
             if light.type == RtlType.POINT:
                 obj.location = (light.pos.x, light.pos.z, light.pos.y)
+            if light.type == RtlType.DIRECTIONAL:
+                blend_light.use_shadow = False
+
+                direction = light.dir
+                obj.matrix_world = mathutils.Matrix(
+                    (
+                        (0.0, direction.x, 0.0, 0.0),
+                        (0.0, direction.z, 0.0, 0.0),
+                        (0.0, direction.y, 0.0, 0.0),
+                        (0.0, 0.0, 0.0, 1.0),
+                    )
+                )
 
             blend_light.color = (light.colour.r, light.colour.g, light.colour.b)
 
