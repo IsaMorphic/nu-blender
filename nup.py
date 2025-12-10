@@ -77,6 +77,7 @@ def import_nup(context, filepath):
         bsdf_node = node_tree.nodes.get("Principled BSDF") or node_tree.nodes.new(
             "ShaderNodeBsdfPrincipled"
         )
+        bsdf_node.inputs["Roughness"].default_value = 1.0
 
         vert_color_node = node_tree.nodes.new("ShaderNodeVertexColor")
         vert_color_node.layer_name = "Col"
@@ -120,6 +121,12 @@ def import_nup(context, filepath):
                 node_tree.links.new(
                     vert_color_node.outputs["Alpha"], alpha_mix_node.inputs["B"]
                 )
+            
+            if material.is_emissive:
+                bsdf_node.inputs["Emission Strength"].default_value = 1.0
+                node_tree.links.new(
+                    color_mix_node.outputs["Color"], bsdf_node.inputs["Emission Color"]
+                )
 
             output_node = node_tree.nodes.get("Material Output") or node_tree.nodes.new(
                 "ShaderNodeOutputMaterial"
@@ -136,6 +143,13 @@ def import_nup(context, filepath):
                 node_tree.links.new(
                     vert_color_node.outputs["Alpha"], bsdf_node.inputs["Alpha"]
                 )
+            
+            if material.is_emissive:
+                bsdf_node.inputs["Emission Strength"].default_value = 1.0
+                node_tree.links.new(
+                    vert_color_node.outputs["Color"], bsdf_node.inputs["Emission Color"]
+                )
+
 
     action_names = []
     for anim in nup.scene.anim_data:
