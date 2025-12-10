@@ -13,6 +13,8 @@ class NuMaterial:
 
         self.is_alpha_blended = (attributes & 0xF) != 0
 
+        self.is_emissive = (attributes & 0x2) != 0
+
         self.diffuse = NuColour3(data, offset + 0x54)
 
         # This alpha value isn't used in rendering. It can hint as to the alpha
