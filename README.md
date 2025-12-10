@@ -4,4 +4,4 @@ A work-in-progress, modern Blender add-on that adds import support for scene fil
 
 ## Building
 
-Before building the add-on, make sure to add the Blender installation directory to your `PATH`. Then follow the instructions [located here](build/README.md).
+Before building the add-on, make sure Blender 4.2 or above is installed. Then follow the instructions [located here](build/README.md).
