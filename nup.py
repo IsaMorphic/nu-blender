@@ -53,7 +53,7 @@ def import_nup(context, filepath):
             material.alpha,
         )
 
-        bsdf_node = node_tree.nodes["Principled BSDF"] or node_tree.nodes.new(
+        bsdf_node = node_tree.nodes.get("Principled BSDF") or node_tree.nodes.new(
             "ShaderNodeBsdfPrincipled"
         )
 
@@ -100,7 +100,7 @@ def import_nup(context, filepath):
                     vert_color_node.outputs["Alpha"], alpha_mix_node.inputs["B"]
                 )
 
-            output_node = node_tree.nodes["Material Output"] or node_tree.nodes.new(
+            output_node = node_tree.nodes.get("Material Output") or node_tree.nodes.new(
                 "ShaderNodeOutputMaterial"
             )
             node_tree.links.new(
