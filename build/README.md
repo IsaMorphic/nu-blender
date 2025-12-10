@@ -39,7 +39,7 @@ cd nu-blender
 ### Step 2: Build the extension
 
 ```shell
-sh .\scripts\build.sh
+sh ./scripts/build.sh
 ```
 
 ## On macOS
@@ -56,5 +56,5 @@ cd nu-blender
 ### Step 2: Build the extension
 
 ```shell
-zsh .\scripts\build.sh
+zsh ./scripts/build.sh
 ```
