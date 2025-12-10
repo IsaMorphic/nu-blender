@@ -39,6 +39,7 @@ platforms = ["linux-x64","macos-x64", "windows-x64"]
 # # https://docs.blender.org/manual/en/dev/advanced/extensions/python_wheels.html
 wheels = [
     "./wheels/pillow-12.0.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+    "./wheels/pillow-12.0.0-cp311-cp311-win_amd64.whl",
     "./wheels/pillow-12.0.0-cp311-cp311-macosx_10_10_x86_64.whl",
 ]
 
