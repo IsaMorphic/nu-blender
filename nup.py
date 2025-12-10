@@ -41,7 +41,8 @@ def import_nup(context, filepath):
 
     for material in nup.materials:
         blend_mat = bpy.data.materials.new("[unnamed]")
-
+        
+        blend_mat.use_nodes = True
         node_tree = blend_mat.node_tree
 
         # This doesn't affect rendering, but shows up in layout mode. It can
@@ -290,6 +291,7 @@ def import_nup(context, filepath):
 
     # Set the world background color to approximate ambient lighting.
     world = bpy.data.worlds.new("World")
+    world.use_nodes = True
 
     ambient_node = world.node_tree.nodes.new("ShaderNodeAttribute")
     ambient_node.attribute_name = "Ambient"
@@ -314,7 +316,7 @@ def import_nup(context, filepath):
     bg_selector_node = world.node_tree.nodes.new("ShaderNodeMixShader")
 
     world.node_tree.links.new(
-        light_node.outputs["Is Camera Ray"], bg_selector_node.inputs["Factor"]
+        light_node.outputs["Is Camera Ray"], bg_selector_node.inputs[0]
     )
 
     world.node_tree.links.new(
