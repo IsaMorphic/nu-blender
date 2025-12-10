@@ -39,8 +39,10 @@ def import_nup(context, filepath):
 
         blend_img.pack(data=image_data, data_len=len(image_data))
 
+    material_names = []
     for material in nup.materials:
-        blend_mat = bpy.data.materials.new("[unnamed]")
+        blend_mat = bpy.data.materials.new("Material")
+        material_names.append(blend_mat.name)
 
         node_tree = blend_mat.node_tree
 
@@ -153,7 +155,9 @@ def import_nup(context, filepath):
                 blend_mat_idx = len(mesh_materials)
                 nu_mtl_idx_to_blend[geom.material_idx] = blend_mat_idx
 
-                mesh_materials.append(bpy.data.materials[geom.material_idx])
+                mesh_materials.append(
+                    bpy.data.materials[material_names[geom.material_idx]]
+                )
 
             prim = geom.prim
 
