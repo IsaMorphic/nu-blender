@@ -288,7 +288,52 @@ def import_nup(context, filepath):
         data = file.read()
         rtl = RtlSet(data)
 
+    # Set the world background color to approximate ambient lighting.
     world = bpy.data.worlds.new("World")
+
+    ambient_node = world.node_tree.nodes.new("ShaderNodeAttribute")
+    ambient_node.attribute_name = "Ambient"
+    ambient_node.attribute_type = "VIEW_LAYER"
+
+    color_bg_node = world.node_tree.nodes.get(
+        "Background"
+    ) or world.node_tree.nodes.new("ShaderNodeBackground")
+
+    world.node_tree.links.new(
+        ambient_node.outputs["Color"], color_bg_node.inputs["Color"]
+    )
+
+    # We can configure the world shader to _display_ the world background as
+    # black, as it is in-game, even though the lighting contribution comes from
+    # the ambient color.
+    display_bg_node = world.node_tree.nodes.new("ShaderNodeBackground")
+    display_bg_node.inputs["Color"].default_value = (0.0, 0.0, 0.0, 0.0)
+
+    light_node = world.node_tree.nodes.new("ShaderNodeLightPath")
+
+    bg_selector_node = world.node_tree.nodes.new("ShaderNodeMixShader")
+
+    world.node_tree.links.new(
+        light_node.outputs["Is Camera Ray"], bg_selector_node.inputs["Factor"]
+    )
+
+    world.node_tree.links.new(
+        color_bg_node.outputs["Background"], bg_selector_node.inputs[1]
+    )
+
+    world.node_tree.links.new(
+        display_bg_node.outputs["Background"], bg_selector_node.inputs[2]
+    )
+
+    output_node = world.node_tree.nodes.get(
+        "World Output"
+    ) or world.node_tree.nodes.new("ShaderNodeOutputWorld")
+
+    world.node_tree.links.new(
+        bg_selector_node.outputs["Shader"], output_node.inputs["Surface"]
+    )
+
+    scene.world = world
 
     for light in rtl.lights:
         # TODO: Figure out what the heck to do about lights other than point,
@@ -298,7 +343,6 @@ def import_nup(context, filepath):
         if light.type == RtlType.AMBIENT:
             # There's no real equivalent, so we set this as a property of the
             # scene.
-            # TODO: Take it into account in the shader somehow?
             scene["Ambient"] = [light.colour.r, light.colour.g, light.colour.b]
         elif light.type == RtlType.POINT:
             blend_light = bpy.data.lights.new("Light", "POINT")
