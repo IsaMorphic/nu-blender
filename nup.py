@@ -269,6 +269,9 @@ def import_nup(context, filepath):
 
             bpy.context.collection.objects.link(obj)
 
+            if not instance.is_visible:
+                obj.hide_set(True)
+
     for spline in nup.scene.splines:
         curve = bpy.data.curves.new(spline.name, "CURVE")
         blend_spline = curve.splines.new("POLY")

@@ -164,6 +164,10 @@ class NuInstance:
         self.transform = NuMtx(data, offset)
         self.obj_idx = read_i16(data, offset + 0x40)
 
+        flags = read_u32(data, offset + 0x44)
+
+        self.is_visible = (flags & 1) != 0
+
         anim_offset = read_u32(data, offset + 0x48)
         if anim_offset != 0:
             self.anim = NuInstAnim(data, anim_offset)
