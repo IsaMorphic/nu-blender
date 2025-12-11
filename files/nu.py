@@ -31,7 +31,7 @@ class NuGeom:
     next = None
 
     def __init__(self, data, offset, vertex_bufs):
-        next_offset = read_u32(data, offset + 0x00)
+        next_offset = read_u32(data, offset)
         if next_offset != 0:
             self.next = NuGeom(data, next_offset, vertex_bufs)
 

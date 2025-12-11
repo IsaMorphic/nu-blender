@@ -150,9 +150,12 @@ class NuScene:
 class NuObject:
     SIZE = 0x70
 
+    geom = None
+
     def __init__(self, data, offset, vertex_bufs):
         geom_offset = read_u32(data, offset + 0x0C)
-        self.geom = NuGeom(data, geom_offset, vertex_bufs)
+        if geom_offset != 0:
+            self.geom = NuGeom(data, geom_offset, vertex_bufs)
 
 
 class NuInstance:
