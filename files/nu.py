@@ -63,7 +63,7 @@ class NuPrim:
     def __init__(self, data, offset):
         next_offset = read_u32(data, offset + 0x00)
         if next_offset != 0:
-            self.next = NuPrim(body, next_offset)
+            self.next = NuPrim(data, next_offset)
 
         self.type = NuPrimType(read_u32(data, offset + 0x04))
 
