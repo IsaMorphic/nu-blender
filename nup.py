@@ -24,6 +24,7 @@ def import_nup(context, filepath):
     scene = bpy.context.scene
     scene.name = scene_name
 
+    image_names = []
     for texture in nup.textures:
         image_bytes = io.BytesIO(texture.data)
         image = Image.open(image_bytes)
@@ -34,6 +35,8 @@ def import_nup(context, filepath):
         image_data = image_as_png.getvalue()
 
         blend_img = bpy.data.images.new("Texture", texture.width, texture.height)
+        image_names.append(blend_img.name)
+
         blend_img.file_format = "PNG"
         blend_img.source = "FILE"
 
@@ -65,7 +68,7 @@ def import_nup(context, filepath):
 
         if material.texture_idx != None:
             texture_node = node_tree.nodes.new("ShaderNodeTexImage")
-            texture_node.image = bpy.data.images[material.texture_idx]
+            texture_node.image = bpy.data.images[image_names[material.texture_idx]]
 
             # Multiply texture color and vertex color for the final unlighted
             # color. This is not game-accurate, but a quick approximation.
