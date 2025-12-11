@@ -13,7 +13,7 @@ class NuMaterial:
 
         self.is_alpha_blended = (attributes & 0xF) != 0
 
-        self.is_emissive = (attributes & 0x2) != 0
+        self.is_emissive = (attributes & 0x30000) != 0x20000
 
         self.diffuse = NuColour3(data, offset + 0x54)
 
