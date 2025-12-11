@@ -1,6 +1,6 @@
 # Building
 
-To build this plugin, a compatible installation of Blender should be listed in your `PATH` environment variable. Usually you can add this manually by accessing `~/.bashrc` on Linux or `~/.zshrc` on macOS. On Windows, search for "Edit Environment Variables for your Account" in the Start menu. 
+To build this plugin, a compatible installation of Blender should be listed in your `PATH` environment variable. Usually you can add this manually by accessing `~/.bashrc` on Linux or `~/.zshrc` on macOS. On Windows, search for "Edit Environment Variables for your Account" in the Start menu.
 
 ## On Windows
 

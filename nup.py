@@ -41,7 +41,7 @@ def import_nup(context, filepath):
 
     for material in nup.materials:
         blend_mat = bpy.data.materials.new("[unnamed]")
-        
+
         blend_mat.use_nodes = True
         node_tree = blend_mat.node_tree
 
