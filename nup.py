@@ -33,7 +33,7 @@ def import_nup(context, filepath):
 
         image_data = image_as_png.getvalue()
 
-        blend_img = bpy.data.images.new("[unnamed]", texture.width, texture.height)
+        blend_img = bpy.data.images.new("Texture", texture.width, texture.height)
         blend_img.file_format = "PNG"
         blend_img.source = "FILE"
 
@@ -242,7 +242,7 @@ def import_nup(context, filepath):
 
             geom = geom.next
 
-        mesh = bpy.data.meshes.new("[unnamed]")
+        mesh = bpy.data.meshes.new("Object")
 
         for material in mesh_materials:
             mesh.materials.append(material)
@@ -252,7 +252,7 @@ def import_nup(context, filepath):
 
         # Create an object for each instance of this gobj.
         for instance in instances_by_obj.get(obj_idx, []):
-            obj = bpy.data.objects.new("[unnamed]", mesh)
+            obj = bpy.data.objects.new("Instance", mesh)
 
             transform = mathutils.Matrix(instance.transform.rows)
             transform.transpose()
