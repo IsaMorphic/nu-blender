@@ -291,7 +291,17 @@ def import_nup(context, filepath):
         obj = bpy.data.objects.new(spline.name, curve)
         bpy.context.collection.objects.link(obj)
 
-    rtl_path = os.path.join(path, scene_name + ".rtl")
+    # Case-insensitve file lookup for RTL
+    rtl_path = None
+    rtl_name = scene_name.lower() + ".rtl"
+    for file_name in os.listdir(path):
+        if file_name.lower() == rtl_name:
+            rtl_path = os.path.join(path, file_name)
+            break
+
+    if rtl_path == None:
+        return {"FINISHED"}
+
     with open(rtl_path, "rb") as file:
         data = file.read()
         rtl = RtlSet(data)
