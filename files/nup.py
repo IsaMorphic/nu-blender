@@ -17,8 +17,6 @@ class Nup:
 
         self.textures = []
         for i in range(textures_count):
-            texture_offset = read_u32(body, header.texture_hdr_offset + 0x1C + i * 0x14)
-
             width = read_u32(
                 body, header.texture_hdr_offset + 0x0C + i * 0x14
             )
@@ -27,6 +25,9 @@ class Nup:
             )
             type = read_u32(
                 body, header.texture_hdr_offset + 0x18 + i * 0x14
+            )
+            texture_offset = read_u32(
+                body, header.texture_hdr_offset + 0x1C + i * 0x14
             )
 
             # Texture size is not stored in the file, so we need to calculate a
