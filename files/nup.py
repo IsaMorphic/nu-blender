@@ -1,14 +1,12 @@
 from enum import Enum
 
-from .dds import DdsTexture
 from .nu import *
 from .read import *
-
 
 class Nup:
     HEADER_SIZE = 0x40
 
-    def __init__(self, data):
+    def __init__(self, data, platform):
         header = NupHeader(data)
         body = data[0x40:]
 
@@ -20,6 +18,16 @@ class Nup:
         self.textures = []
         for i in range(textures_count):
             texture_offset = read_u32(body, header.texture_hdr_offset + 0x1C + i * 0x14)
+
+            width = read_u32(
+                body, header.texture_hdr_offset + 0x0C + i * 0x14
+            )
+            height = read_u32(
+                body, header.texture_hdr_offset + 0x10 + i * 0x14
+            )
+            type = read_u32(
+                body, header.texture_hdr_offset + 0x18 + i * 0x14
+            )
 
             # Texture size is not stored in the file, so we need to calculate a
             # rough size from the offset of each texture. This works because
@@ -37,7 +45,7 @@ class Nup:
                 header.texture_hdr_offset + 0x0C + texture_data_offset + texture_offset
             )
 
-            self.textures.append(DdsTexture(body, offset_in_body, size_estimate))
+            self.textures.append(NupTexture(body, offset_in_body, size_estimate, width, height, type))
 
         # Load materials.
         materials_count = read_i32(body, header.materials_offset)
@@ -46,7 +54,8 @@ class Nup:
         for i in range(materials_count):
             material_offset = read_u32(body, header.materials_offset + 0x04 + i * 0x04)
 
-            self.materials.append(NuMaterial(body, material_offset))
+            self.materials.append(NuMaterial(body, material_offset + 
+                NuMaterial.PLATFORM_OFFSETS[platform]))
 
         # Load vertex data.
         vertex_bufs_count = read_i32(body, header.vertex_data_offset)
@@ -125,7 +134,7 @@ class NuScene:
                 NuObject(
                     data,
                     object_offset,
-                    vertex_bufs,
+                    vertex_bufs
                 )
             )
 
@@ -146,6 +155,13 @@ class NuScene:
 
             self.splines.append(NuSpline(data, splines_offset_i))
 
+class NupTexture:
+    def __init__(self, data, offset, size, width, height, type):
+        self.data = data[offset : offset + size]
+
+        self.width = width or read_u32(data, offset + 0x0C)
+        self.height = height or read_u32(data, offset + 0x10)
+        self.type = type
 
 class NuObject:
     SIZE = 0x70

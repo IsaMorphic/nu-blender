@@ -1,6 +1,6 @@
 # nu-blender
 
-A work-in-progress, modern Blender add-on that adds import support for scene files (`.nup`) from the PC version of *LEGO Star Wars: The Video Game*.
+A work-in-progress, modern Blender add-on that adds import support for scene files (`.nup`, `.nux`) from the PC and Xbox versions of *LEGO Star Wars: The Video Game*, respectively.
 
 ## Building
 

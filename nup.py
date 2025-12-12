@@ -6,18 +6,25 @@ import mathutils
 import os
 from PIL import Image
 
-
 from .files.nup import Nup, NuPrimType, RtlSet, RtlType
+from .files.nu import NuPlatform
 
 
 def import_nup(context, filepath):
+    (path, filename) = os.path.split(filepath)
+    (scene_name, ext) = os.path.splitext(filename)
+
+    # Detect scene format from file extension
+    match ext.lower():
+        case ".nup":
+            platform = NuPlatform.PC
+        case ".nux":
+            platform = NuPlatform.Xbox
+
     # Load scene files, including scene definition, lights, and configuration.
     with open(filepath, "rb") as file:
         data = file.read()
-        nup = Nup(data)
-
-    (path, filename) = os.path.split(filepath)
-    (scene_name, _) = os.path.splitext(filename)
+        nup = Nup(data, platform)
 
     bpy.ops.scene.new()
 
@@ -26,21 +33,22 @@ def import_nup(context, filepath):
 
     image_names = []
     for texture in nup.textures:
-        image_bytes = io.BytesIO(texture.data)
-        image = Image.open(image_bytes)
+        try:
+            image_bytes = io.BytesIO(texture.data)
+            image = Image.open(image_bytes)
+        except:
+            match texture.type:
+                case 0x0C:  # DXT1
+                    decoder = "DXT1"
+                case 0x0F: # DXT5
+                    decoder = "DXT5"
+            image = Image.frombytes("RGBA", (texture.width, texture.height), texture.data, decoder)
 
-        image_as_png = io.BytesIO()
-        image.save(image_as_png, "PNG")
-
-        image_data = image_as_png.getvalue()
-
+        image_data = image.getdata()
         blend_img = bpy.data.images.new("Texture", texture.width, texture.height)
+        blend_img.pixels = [item / 255.0 for t in image_data for item in t]
+
         image_names.append(blend_img.name)
-
-        blend_img.file_format = "PNG"
-        blend_img.source = "FILE"
-
-        blend_img.pack(data=image_data, data_len=len(image_data))
 
     material_names = []
     for material in nup.materials:
@@ -113,8 +121,22 @@ def import_nup(context, filepath):
                 bsdf_node.outputs["BSDF"], output_node.inputs["Surface"]
             )
         else:
+            color_mix_node = node_tree.nodes.new("ShaderNodeMixRGB")
+            color_mix_node.blend_type = "MULTIPLY"
+
+            color_mix_node.inputs["Color1"].default_value = (
+                material.diffuse.r,
+                material.diffuse.g,
+                material.diffuse.b,
+                material.alpha,
+            )
+
             node_tree.links.new(
-                vert_color_node.outputs["Color"], bsdf_node.inputs["Base Color"]
+                vert_color_node.outputs["Color"], color_mix_node.inputs["Color2"]
+            )
+
+            node_tree.links.new(
+                color_mix_node.outputs["Color"], bsdf_node.inputs["Base Color"]
             )
 
             if material.is_alpha_blended:

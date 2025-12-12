@@ -23,25 +23,30 @@ class NupImport(Operator, ImportHelper):
     """This appears in the tooltip of the operator and in the generated docs"""
 
     bl_idname = "import_scene.lsw1_nup"  # important since its how bpy.ops.import_test.some_data is constructed
-    bl_label = "Import NUP"
+    bl_label = "Import NUP/NUX Scene"
 
     # ImportHelper mix-in class uses this.
     filename_ext = ".nup"
 
     filter_glob: StringProperty(
-        default="*.nup",
+        default="*.nup;*.nux",
         options={"HIDDEN"},
         maxlen=255,  # Max internal buffer length, longer would be clamped.
     )
 
-    def execute(self, context):
-        from .nup import import_nup
+    def execute(self, context):        
+        from .plugins.DdsImagePlugin import DXT1Decoder, DXT5Decoder
+        from PIL import Image
 
+        Image.register_decoder("DXT1", DXT1Decoder)
+        Image.register_decoder("DXT5", DXT5Decoder)
+
+        from .nup import import_nup
         return import_nup(context, self.filepath)
 
 
 def menu_func_import(self, context):
-    self.layout.operator(NupImport.bl_idname, text="LSW1 Scene (.nup)")
+    self.layout.operator(NupImport.bl_idname, text="LSW1 Scene (.nup/.nux)")
 
 
 def register():
