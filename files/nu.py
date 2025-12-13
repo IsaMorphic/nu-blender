@@ -155,10 +155,11 @@ class NuVtxTc1:
         self.position = NuVec(data, offset)
         self.normal = NuVec(data, offset + 0x0C)
         self.colour = NuColour32(data, offset + 0x18)
-        self.uv = [
+
+        self.uv = (
             read_f32(data, offset + 0x1C),
             read_f32(data, offset + 0x20),
-        ]
+        )
 
 
 class NuColour3:
