@@ -125,6 +125,7 @@ def import_nup(context, filepath):
                 bsdf_node.outputs["BSDF"], output_node.inputs["Surface"]
             )
         else:
+            # Sometimes, all vertices are white, in which case we blend with material color
             color_mix_node = node_tree.nodes.new("ShaderNodeMixRGB")
             color_mix_node.blend_type = "MULTIPLY"
 
