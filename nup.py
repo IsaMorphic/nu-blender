@@ -7,7 +7,7 @@ import os
 from PIL import Image
 
 from .files.nup import Nup, NuPrimType, RtlSet, RtlType
-from .files.nu import NuPlatform
+from .files.nu import NuPlatform, NuTextureType
 
 
 def import_nup(context, filepath):
@@ -19,7 +19,7 @@ def import_nup(context, filepath):
         case ".nup":
             platform = NuPlatform.PC
         case ".nux":
-            platform = NuPlatform.Xbox
+            platform = NuPlatform.XBOX
 
     # Load scene files, including scene definition, lights, and configuration.
     with open(filepath, "rb") as file:
@@ -33,18 +33,22 @@ def import_nup(context, filepath):
 
     image_names = []
     for texture in nup.textures:
-        try:
-            image_bytes = io.BytesIO(texture.data)
-            image = Image.open(image_bytes)
-        except:
-            match texture.type:
-                case 0x0C:  # DXT1
-                    decoder = "DXT1"
-                case 0x0F: # DXT5
-                    decoder = "DXT5"
-            image = Image.frombytes("RGBA", (texture.width, texture.height), texture.data, decoder)
+        match texture.type:
+            case NuTextureType.DXT1:
+                decoder = "DXT1"
+            case NuTextureType.DXT5:
+                decoder = "DXT5"
+            case NuTextureType.DDS:
+                decoder = None
 
+        if decoder == None:
+            image = Image.open(io.BytesIO(texture.data), formats=["DDS"])
+        else:
+            image = Image.frombytes(
+                "RGBA", (texture.width, texture.height), texture.data, decoder
+            )
         image_data = image.getdata()
+
         blend_img = bpy.data.images.new("Texture", texture.width, texture.height)
         blend_img.pixels = [item / 255.0 for t in image_data for item in t]
 
