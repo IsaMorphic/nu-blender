@@ -257,7 +257,7 @@ def import_nup(context, filepath):
                             vertex = geom.vertices[vert]
 
                             loop[uv_layer].uv[0] = vertex.uv[0]
-                            loop[uv_layer].uv[1] = -vertex.uv[1]
+                            loop[uv_layer].uv[1] = vertex.uv[1]
 
                             vert_color = vertex.colour
                             loop[color_layer] = (
