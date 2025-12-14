@@ -1,6 +1,7 @@
 from enum import Enum
 
-from .dds import DdsTexture
+from .types import *
+
 from .nu import *
 from .read import *
 
@@ -8,7 +9,7 @@ from .read import *
 class Nup:
     HEADER_SIZE = 0x40
 
-    def __init__(self, data):
+    def __init__(self, data, platform):
         header = NupHeader(data)
         body = data[0x40:]
 
@@ -19,25 +20,35 @@ class Nup:
 
         self.textures = []
         for i in range(textures_count):
-            texture_offset = read_u32(body, header.texture_hdr_offset + 0x1C + i * 0x14)
+            texture_header = NuTextureHeader(
+                body, header.texture_hdr_offset + 0x0C + i * NuTextureHeader.SIZE
+            )
 
             # Texture size is not stored in the file, so we need to calculate a
             # rough size from the offset of each texture. This works because
             # textures are stored contiguously.
             if i < textures_count - 1:
-                next_texture_offset = read_u32(
-                    body, header.texture_hdr_offset + 0x1C + (i + 1) * 0x14
+                next_texture_header = NuTextureHeader(
+                    body,
+                    header.texture_hdr_offset + 0x0C + (i + 1) * NuTextureHeader.SIZE,
                 )
 
-                size_estimate = next_texture_offset - texture_offset
+                size_estimate = (
+                    next_texture_header.data_offset - texture_header.data_offset
+                )
             else:
-                size_estimate = texture_data_size - texture_offset
+                size_estimate = texture_data_size - texture_header.data_offset
 
             offset_in_body = (
-                header.texture_hdr_offset + 0x0C + texture_data_offset + texture_offset
+                header.texture_hdr_offset
+                + 0x0C
+                + texture_data_offset
+                + texture_header.data_offset
             )
 
-            self.textures.append(DdsTexture(body, offset_in_body, size_estimate))
+            self.textures.append(
+                Texture(body, offset_in_body, size_estimate, texture_header)
+            )
 
         # Load materials.
         materials_count = read_i32(body, header.materials_offset)
@@ -46,7 +57,7 @@ class Nup:
         for i in range(materials_count):
             material_offset = read_u32(body, header.materials_offset + 0x04 + i * 0x04)
 
-            self.materials.append(NuMaterial(body, material_offset))
+            self.materials.append(NuMaterial(body, material_offset, platform))
 
         # Load vertex data.
         vertex_bufs_count = read_i32(body, header.vertex_data_offset)
@@ -121,13 +132,7 @@ class NuScene:
             objects_offset_i = objects_offset + i * 4
             object_offset = read_u32(data, objects_offset_i)
 
-            self.objects.append(
-                NuObject(
-                    data,
-                    object_offset,
-                    vertex_bufs,
-                )
-            )
+            self.objects.append(NuObject(data, object_offset, vertex_bufs))
 
         instances_count = read_i32(data, offset + 0x18)
 

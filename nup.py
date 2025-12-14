@@ -6,18 +6,25 @@ import mathutils
 import os
 from PIL import Image
 
-
 from .files.nup import Nup, NuPrimType, RtlSet, RtlType
+from .files.nu import NuPlatform, NuTextureType
 
 
 def import_nup(context, filepath):
+    (path, filename) = os.path.split(filepath)
+    (scene_name, ext) = os.path.splitext(filename)
+
+    # Detect scene format from file extension
+    match ext.lower():
+        case ".nup":
+            platform = NuPlatform.PC
+        case ".nux":
+            platform = NuPlatform.XBOX
+
     # Load scene files, including scene definition, lights, and configuration.
     with open(filepath, "rb") as file:
         data = file.read()
-        nup = Nup(data)
-
-    (path, filename) = os.path.split(filepath)
-    (scene_name, _) = os.path.splitext(filename)
+        nup = Nup(data, platform)
 
     bpy.ops.scene.new()
 
@@ -26,21 +33,26 @@ def import_nup(context, filepath):
 
     image_names = []
     for texture in nup.textures:
-        image_bytes = io.BytesIO(texture.data)
-        image = Image.open(image_bytes)
+        match texture.type:
+            case NuTextureType.DXT1:
+                decoder = "DXT1"
+            case NuTextureType.DXT5:
+                decoder = "DXT5"
+            case NuTextureType.DDS:
+                decoder = None
 
-        image_as_png = io.BytesIO()
-        image.save(image_as_png, "PNG")
-
-        image_data = image_as_png.getvalue()
+        if decoder == None:
+            image = Image.open(io.BytesIO(texture.data), formats=["DDS"])
+        else:
+            image = Image.frombytes(
+                "RGBA", (texture.width, texture.height), texture.data, decoder
+            )
+        image_data = image.getdata()
 
         blend_img = bpy.data.images.new("Texture", texture.width, texture.height)
+        blend_img.pixels = [item / 255.0 for t in image_data for item in t]
+
         image_names.append(blend_img.name)
-
-        blend_img.file_format = "PNG"
-        blend_img.source = "FILE"
-
-        blend_img.pack(data=image_data, data_len=len(image_data))
 
     material_names = []
     for material in nup.materials:
@@ -230,7 +242,7 @@ def import_nup(context, filepath):
                             vertex = geom.vertices[vert]
 
                             loop[uv_layer].uv[0] = vertex.uv[0]
-                            loop[uv_layer].uv[1] = -vertex.uv[1]
+                            loop[uv_layer].uv[1] = vertex.uv[1]
 
                             vert_color = vertex.colour
                             loop[color_layer] = (

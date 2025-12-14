@@ -3,24 +3,56 @@ from enum import Enum
 from .read import *
 
 
+class NuPlatform(Enum):
+    PC = 1
+    XBOX = 2
+
+
+class NuTextureType(Enum):
+    DXT1 = 0x0C
+    DXT5 = 0x0F
+    DDS = 0x0E
+
+
+class NuTextureHeader:
+    SIZE = 0x14
+
+    def __init__(self, data, offset):
+        self.width = read_u32(data, offset + 0x00)
+        self.height = read_u32(data, offset + 0x04)
+        self.levels = read_u32(data, offset + 0x08)
+        self.type = NuTextureType(read_u32(data, offset + 0x0C))
+        self.data_offset = read_u32(data, offset + 0x10)
+
+
 class NuMaterial:
-    SIZE = 0xB4
+    PLATFORM_OFFSETS = {
+        NuPlatform.PC: 0x4,
+        NuPlatform.XBOX: 0x0,
+    }
 
     texture_idx = None
 
-    def __init__(self, data, offset):
-        attributes = read_u32(data, offset + 0x40)
+    def __init__(self, data, offset, platform):
+        attributes = read_u32(
+            data, offset + 0x3C + NuMaterial.PLATFORM_OFFSETS[platform]
+        )
 
         self.is_alpha_blended = (attributes & 0xF) != 0
 
-        self.diffuse = NuColour3(data, offset + 0x54)
+        self.diffuse = NuColour3(
+            data, offset + 0x50 + NuMaterial.PLATFORM_OFFSETS[platform]
+        )
 
         # This alpha value isn't used in rendering. It can hint as to the alpha
         # values in vertex data, however.
-        self.alpha = read_f32(data, offset + 0x74)
+        self.alpha = read_f32(
+            data, offset + 0x70 + NuMaterial.PLATFORM_OFFSETS[platform]
+        )
 
-        texture_idx = read_i16(data, offset + 0x78)
-
+        texture_idx = read_i16(
+            data, offset + 0x74 + NuMaterial.PLATFORM_OFFSETS[platform]
+        )
         if texture_idx != -1:
             self.texture_idx = texture_idx & 0x7FFF
 
@@ -53,6 +85,11 @@ class NuGeom:
 
 class NuVtxType(Enum):
     TC1 = 0x59
+
+
+class NuTexType(Enum):
+    DXT1 = 0x0C
+    DXT5 = 0x0F
 
 
 class NuPrim:
@@ -118,10 +155,11 @@ class NuVtxTc1:
         self.position = NuVec(data, offset)
         self.normal = NuVec(data, offset + 0x0C)
         self.colour = NuColour32(data, offset + 0x18)
-        self.uv = [
+
+        self.uv = (
             read_f32(data, offset + 0x1C),
             read_f32(data, offset + 0x20),
-        ]
+        )
 
 
 class NuColour3:
