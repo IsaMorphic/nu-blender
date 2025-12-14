@@ -110,9 +110,10 @@ def import_nup(context, filepath):
                     # Emissive material.
                     bsdf_node.inputs["Emission Strength"].default_value = 1.0
                     node_tree.links.new(
-                        color_mix_node.outputs["Color"], bsdf_node.inputs["Emission Color"]
+                        color_mix_node.outputs["Color"],
+                        bsdf_node.inputs["Emission Color"],
                     )
-            
+
             if material.alpha_mode != NuAlphaMode.NONE:
                 # The `alpha` attribute is set, so blend the alpha channels as
                 # well.
@@ -150,7 +151,8 @@ def import_nup(context, filepath):
                 case NuAlphaMode.LINEAR_ADD:
                     bsdf_node.inputs["Emission Strength"].default_value = 1.0
                     node_tree.links.new(
-                        vert_color_node.outputs["Color"], bsdf_node.inputs["Emission Color"]
+                        vert_color_node.outputs["Color"],
+                        bsdf_node.inputs["Emission Color"],
                     )
 
             if material.alpha_mode != NuAlphaMode.NONE:
