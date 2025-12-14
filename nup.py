@@ -7,9 +7,8 @@ import mathutils
 import os
 from PIL import Image
 
-from .files.nu import NuAnimComponent, NuPlatform, NuTextureType
 from .files.nup import Nup, NuPrimType, RtlSet, RtlType
-from .files.nu import NuPlatform, NuTextureType
+from .files.nu import NuPlatform, NuTextureType, NuAlphaMode, NuAnimComponent, NuPlatform, NuTextureType
 
 
 def import_nup(context, filepath):
@@ -104,17 +103,17 @@ def import_nup(context, filepath):
             )
 
             match material.alpha_mode:
-                case 0x1:
+                case NuAlphaMode.STRAIGHT:
                     # No special handling needed. 'Straight' alpha.
                     pass
-                case 0x2:
+                case NuAlphaMode.LINEAR_ADD:
                     # Emissive material.
                     bsdf_node.inputs["Emission Strength"].default_value = 1.0
                     node_tree.links.new(
                         color_mix_node.outputs["Color"], bsdf_node.inputs["Emission Color"]
                     )
             
-            if material.alpha_mode != 0:
+            if material.alpha_mode != NuAlphaMode.NONE:
                 # The `alpha` attribute is set, so blend the alpha channels as
                 # well.
                 alpha_mix_node = node_tree.nodes.new("ShaderNodeMix")
@@ -145,16 +144,16 @@ def import_nup(context, filepath):
             )
 
             match material.alpha_mode:
-                case 0x1:
+                case NuAlphaMode.STRAIGHT:
                     # No special handling needed. 'Straight' alpha.
                     pass
-                case 0x2:
+                case NuAlphaMode.LINEAR_ADD:
                     bsdf_node.inputs["Emission Strength"].default_value = 1.0
                     node_tree.links.new(
                         vert_color_node.outputs["Color"], bsdf_node.inputs["Emission Color"]
                     )
 
-            if material.alpha_mode != 0:
+            if material.alpha_mode != NuAlphaMode.NONE:
                 node_tree.links.new(
                     vert_color_node.outputs["Alpha"], bsdf_node.inputs["Alpha"]
                 )
