@@ -1,0 +1,8 @@
+# LSW1 Shader Reference Table (WIP)
+
+| `fxid` | Conditions                                                   | Offset     | Description                                                  |
+| ------ | ------------------------------------------------------------ | ---------- | ------------------------------------------------------------ |
+| `0x01` | not skinned, `fxid == 0`, `alpha != 6`, `lighting !=  2`, HDR lighting disabled | `0x23d0e8` |                                                              |
+| `0x02` | not skinned, `fxid == 0`, `alpha != 6`, `lighting !=  2`, HDR lighting enabled | `0x239100` | Vertex shader color output is material color RGB with vertex data A, lighting is calculated in pixel shader. Texture color, if any,  multiplied with vertex color, then multiplied with lighting and doubled.  Otherwise, vertex color multiplied with lighting and alpha doubled. |
+| ...    |                                                              |            |                                                              |
+| `0x16` | not skinned, `fxid == 0`, `alpha != 6`, `lighting ==  2`     | `0x2592a8` | `ColorType` set to (0.0, 0.5) if `colour == 0`, (1.0,  0.0) if `colour == 1`. Material color RGB premultiplied by `ColorType.y`.  Final color output is vertex data RGBA times `ColorType.x` plus premultiplied  material color. Texture color, if any, multipled with vertex color, then doubled.  Otherwise, vertex color alpha doubled. |
