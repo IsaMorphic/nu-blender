@@ -151,6 +151,18 @@ class NuScene:
 
             self.splines.append(NuSpline(data, splines_offset_i))
 
+        anim_data_offset = read_u32(data, offset + 0x48)
+        anim_data_count = read_i32(data, offset + 0x4C)
+
+        self.anim_data = []
+        for i in range(anim_data_count):
+            anim_data_offset_i = read_u32(data, anim_data_offset + i * 0x04)
+
+            if anim_data_offset_i != 0:
+                self.anim_data.append(NuAnimData(data, anim_data_offset_i, header))
+            else:
+                self.anim_data.append(None)
+
 
 class NuObject:
     SIZE = 0x70
@@ -185,7 +197,10 @@ class NuInstAnim:
     SIZE = 0x60
 
     def __init__(self, data, offset):
-        self.mtx = NuMtx(data, offset)
+        self.time_factor = read_f32(data, offset + 0x40)
+        self.time_first = read_f32(data, offset + 0x44)
+        self.time_interval = read_f32(data, offset + 0x48)
+        self.anim_idx = read_u8(data, offset + 0x5C)
 
 
 class NuSpline:

@@ -187,3 +187,151 @@ class NuColour32:
 
     def __str__(self):
         return "NuColour32({}, {}, {}, {})".format(self.r, self.g, self.b, self.a)
+
+
+class NuAnimData:
+    def __init__(self, data, offset, header):
+        self.length = read_f32(data, offset)
+
+        chunks_count = read_i32(data, offset + 0x08)
+        chunks_offset = read_u32(data, offset + 0x0C)
+
+        self.chunks = []
+        for i in range(chunks_count):
+            chunks_offset_i = read_u32(data, chunks_offset + i * 0x04)
+            if chunks_offset_i != 0:
+                self.chunks.append(NuAnimDataChunk(data, chunks_offset_i))
+
+
+class NuAnimDataChunk:
+    def __init__(self, data, offset):
+        nodes_count = read_i32(data, offset)
+
+        keys_offset = read_u32(data, offset + 0x0C)
+        curves_offset = read_u32(data, offset + 0x10)
+
+        curvesets_offset = read_u32(data, offset + 0x08)
+        self.curvesets = []
+        if curvesets_offset != 0:
+            for i in range(nodes_count):
+                curvesets_offset_i = read_u32(data, curvesets_offset + i * 0x04)
+                if curvesets_offset_i != 0:
+                    self.curvesets.append(
+                        NuAnimCurveSet(
+                            data, curvesets_offset_i, keys_offset, curves_offset
+                        )
+                    )
+
+
+class NuAnimCurveSet:
+    def __init__(self, data, offset, chunk_keys_offset, chunk_curves_offset):
+        flags = read_u32(data, offset)
+        self.has_rotation = (flags & 0x01) != 0
+        self.has_scale = (flags & 0x08) != 0
+
+        constants_offset = read_u32(data, offset + 0x04)
+        curves_offset = read_u32(data, offset + 0x08)
+        curves_count = read_i32(data, offset + 0x0C)
+
+        assert curves_count == 9, "expecting exactly 9 animation components"
+
+        self.constants = {}
+        self.curves = {}
+
+        next_curve = 0
+        next_key = 0
+        for i in range(curves_count):
+            component = NuAnimComponent(i)
+
+            if not self.has_rotation and (
+                component == NuAnimComponent.X_ROTATION
+                or component == NuAnimComponent.Y_ROTATION
+                or component == NuAnimComponent.Z_ROTATION
+            ):
+                continue
+
+            if not self.has_scale and (
+                component == NuAnimComponent.X_SCALE
+                or component == NuAnimComponent.Y_SCALE
+                or component == NuAnimComponent.Z_SCALE
+            ):
+                continue
+
+            constants_offset_i = constants_offset + i * 0x04
+
+            constant = read_f32(data, constants_offset_i)
+            if constant == 3.4028234663852886e38:
+                chunk_curves_offset_next = (
+                    chunk_curves_offset + next_curve * NuAnimCurve.SIZE
+                )
+                next_curve += 1
+
+                chunk_keys_offset_next = chunk_keys_offset + next_key * NuAnimKey.SIZE
+
+                self.curves[component] = NuAnimCurve(
+                    data, chunk_curves_offset_next, chunk_keys_offset_next
+                )
+
+                next_key += len(self.curves[component].keys)
+            else:
+                self.constants[component] = constant
+
+                if curves_offset != 0:
+                    curves_offset_i = read_u32(data, curves_offset + i * 0x04)
+
+                    if curves_offset_i != 0:
+                        self.curves[component] = NuAnimCurve(
+                            data, curves_offset_i, None
+                        )
+
+
+class NuAnimCurve:
+    SIZE = 0x10
+
+    def __init__(self, data, offset, chunk_keys_offset):
+        self.mask = read_u32(data, offset)
+
+        keys_offset = read_u32(data, offset + 0x04)
+        keys_count = read_i32(data, offset + 0x08)
+
+        flags = read_u32(data, offset + 0x0C)
+
+        keys_offset_to_read = None
+        if chunk_keys_offset:
+            keys_offset_to_read = chunk_keys_offset
+        elif keys_offset != 0:
+            keys_offset_to_read = keys_offset
+
+        self.keys = []
+        if keys_offset_to_read is not None:
+            for i in range(keys_count):
+                keys_offset_i = keys_offset_to_read + i * NuAnimKey.SIZE
+
+                self.keys.append(NuAnimKey(data, keys_offset_i))
+
+
+class NuAnimKey:
+    SIZE = 0x10
+
+    def __init__(self, data, offset):
+        self.time = read_f32(data, offset)
+        self.delta_time = read_f32(data, offset + 0x04)
+        self.c = read_f32(data, offset + 0x08)
+        self.d = read_f32(data, offset + 0x0C)
+
+    def __str__(self):
+        return "NuAnimKey(time = {}, delta_time = {}, c = {}, d = {})".format(
+            self.time, self.delta_time, self.c, self.d
+        )
+
+
+class NuAnimComponent(Enum):
+    X_TRANSLATION = 0
+    Y_TRANSLATION = 1
+    Z_TRANSLATION = 2
+    X_ROTATION = 3
+    Y_ROTATION = 4
+    Z_ROTATION = 5
+    X_SCALE = 6
+    Y_SCALE = 7
+    Z_SCALE = 8

@@ -2,10 +2,12 @@ import bmesh
 import bpy
 from enum import Enum
 import io
+import math
 import mathutils
 import os
 from PIL import Image
 
+from .files.nu import NuAnimComponent, NuPlatform, NuTextureType
 from .files.nup import Nup, NuPrimType, RtlSet, RtlType
 from .files.nu import NuPlatform, NuTextureType
 
@@ -133,6 +135,100 @@ def import_nup(context, filepath):
                 node_tree.links.new(
                     vert_color_node.outputs["Alpha"], bsdf_node.inputs["Alpha"]
                 )
+
+    action_names = []
+    for anim in nup.scene.anim_data:
+        if anim is None:
+            action_names.append(None)
+            continue
+
+        action = bpy.data.actions.new("Anim Data")
+        action_names.append(action.name)
+
+        object_slot = action.slots.new("OBJECT", "Anim Data")
+
+        layer = action.layers.new("Anim Data")
+        strip = layer.strips.new()
+        bag = strip.channelbag(object_slot, ensure=True)
+
+        x_translation_curve = bag.fcurves.new("delta_location", index=0)
+        y_translation_curve = bag.fcurves.new("delta_location", index=1)
+        z_translation_curve = bag.fcurves.new("delta_location", index=2)
+
+        anim_length = math.floor(anim.length) - 1
+        for frame in range(anim_length):
+            chunk_idx = frame // 32
+            frame_in_chunk = frame - chunk_idx * 32
+
+            curveset = anim.chunks[chunk_idx].curvesets[0]
+
+            if curveset.has_rotation:
+                x_rot = curveset_key_for_frame(
+                    curveset, NuAnimComponent.X_ROTATION, frame
+                )
+                if x_rot is not None:
+                    x_rotation_curve = bag.fcurves.ensure(
+                        "delta_rotation_euler", index=0
+                    )
+                    x_rotation_curve.keyframe_points.insert(frame, x_rot)
+
+                y_rot = curveset_key_for_frame(
+                    curveset, NuAnimComponent.Y_ROTATION, frame
+                )
+                if y_rot is not None:
+                    z_rotation_curve = bag.fcurves.ensure(
+                        "delta_rotation_euler", index=2
+                    )
+                    z_rotation_curve.keyframe_points.insert(frame, -y_rot)
+
+                z_rot = curveset_key_for_frame(
+                    curveset, NuAnimComponent.Z_ROTATION, frame
+                )
+                if z_rot is not None:
+                    y_rotation_curve = bag.fcurves.ensure(
+                        "delta_rotation_euler", index=1
+                    )
+                    y_rotation_curve.keyframe_points.insert(frame, z_rot)
+
+            if curveset.has_scale:
+                x_scale = curveset_key_for_frame(
+                    curveset, NuAnimComponent.X_SCALE, frame
+                )
+                if x_scale is not None:
+                    x_scale_curve = bag.fcurves.ensure("scale", index=0)
+                    x_scale_curve.keyframe_points.insert(frame, x_scale)
+
+                y_scale = curveset_key_for_frame(
+                    curveset, NuAnimComponent.Y_SCALE, frame
+                )
+                if y_scale is not None:
+                    z_scale_curve = bag.fcurves.ensure("scale", index=2)
+                    z_scale_curve.keyframe_points.insert(frame, y_scale)
+
+                z_scale = curveset_key_for_frame(
+                    curveset, NuAnimComponent.Z_SCALE, frame
+                )
+                if z_scale is not None:
+                    y_scale_curve = bag.fcurves.ensure("scale", index=1)
+                    y_scale_curve.keyframe_points.insert(frame, z_scale)
+
+            x = curveset_key_for_frame(
+                curveset, NuAnimComponent.X_TRANSLATION, frame_in_chunk
+            )
+            if x is not None:
+                x_translation_curve.keyframe_points.insert(frame, x)
+
+            y = curveset_key_for_frame(
+                curveset, NuAnimComponent.Y_TRANSLATION, frame_in_chunk
+            )
+            if y is not None:
+                z_translation_curve.keyframe_points.insert(frame, y)
+
+            z = curveset_key_for_frame(
+                curveset, NuAnimComponent.Z_TRANSLATION, frame_in_chunk
+            )
+            if z is not None:
+                y_translation_curve.keyframe_points.insert(frame, -z)
 
     # Group instances by their objid so that we can create a single mesh object
     # and provide it to each instance.
@@ -285,7 +381,19 @@ def import_nup(context, filepath):
                 @ transform
             )
 
+            obj.rotation_euler.order = "XZY"
+
             obj.matrix_world = transform
+
+            if instance.anim is not None:
+                action_name = action_names[instance.anim.anim_idx]
+
+                if action_name is not None:
+                    anim_data = obj.animation_data_create()
+                    action = bpy.data.actions[action_name]
+
+                    anim_data.action = action
+                    anim_data.action_slot = action.slots[0]
 
             bpy.context.collection.objects.link(obj)
 
@@ -403,3 +511,23 @@ def import_nup(context, filepath):
             bpy.context.collection.objects.link(obj)
 
     return {"FINISHED"}
+
+
+def curveset_key_for_frame(curveset, component, frame):
+    curve = curveset.curves.get(component)
+    if curve is not None:
+        key_idx = curve_key_idx_for_frame(curve, frame)
+        if key_idx is not None:
+            return curve.keys[key_idx].d
+    elif frame == 0:
+        return curveset.constants[component]
+
+    return None
+
+
+def curve_key_idx_for_frame(curve, frame):
+    frame_mask = 1 << frame
+    if curve.mask & frame_mask != 0:
+        return (curve.mask & (frame_mask - 1)).bit_count()
+    else:
+        return None
