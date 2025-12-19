@@ -197,6 +197,7 @@ class NuInstAnim:
     SIZE = 0x60
 
     def __init__(self, data, offset):
+        self.mtx = NuMtx(data, offset)
         self.time_factor = read_f32(data, offset + 0x40)
         self.time_first = read_f32(data, offset + 0x44)
         self.time_interval = read_f32(data, offset + 0x48)

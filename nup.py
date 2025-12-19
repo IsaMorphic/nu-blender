@@ -168,25 +168,25 @@ def import_nup(context, filepath):
                 )
                 if x_rot is not None:
                     x_rotation_curve = bag.fcurves.ensure(
-                        "delta_rotation_euler", index=0
+                        "rotation_euler", index=0
                     )
-                    x_rotation_curve.keyframe_points.insert(frame, x_rot)
+                    x_rotation_curve.keyframe_points.insert(frame, x_rot - math.pi / 2.0)
 
                 y_rot = curveset_key_for_frame(
                     curveset, NuAnimComponent.Y_ROTATION, frame
                 )
                 if y_rot is not None:
                     z_rotation_curve = bag.fcurves.ensure(
-                        "delta_rotation_euler", index=2
+                        "rotation_euler", index=2
                     )
-                    z_rotation_curve.keyframe_points.insert(frame, -y_rot)
+                    z_rotation_curve.keyframe_points.insert(frame, y_rot + math.pi)
 
                 z_rot = curveset_key_for_frame(
                     curveset, NuAnimComponent.Z_ROTATION, frame
                 )
                 if z_rot is not None:
                     y_rotation_curve = bag.fcurves.ensure(
-                        "delta_rotation_euler", index=1
+                        "rotation_euler", index=1
                     )
                     y_rotation_curve.keyframe_points.insert(frame, z_rot)
 
@@ -366,7 +366,11 @@ def import_nup(context, filepath):
         for instance in instances_by_obj.get(obj_idx, []):
             obj = bpy.data.objects.new("Instance", mesh)
 
-            transform = mathutils.Matrix(instance.transform.rows)
+            if instance.anim is not None:
+                transform = mathutils.Matrix(instance.anim.mtx.rows)
+            else:
+                transform = mathutils.Matrix(instance.transform.rows)
+
             transform.transpose()
 
             transform = (
