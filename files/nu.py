@@ -202,6 +202,9 @@ class NuAnimData:
             if chunks_offset_i != 0:
                 self.chunks.append(NuAnimDataChunk(data, chunks_offset_i))
 
+    def __repr__(self):
+        return "NuAnimData(length = {}, chunks = {})".format(self.length, self.chunks)
+
 
 class NuAnimDataChunk:
     def __init__(self, data, offset):
@@ -222,12 +225,15 @@ class NuAnimDataChunk:
                         )
                     )
 
+    def __repr__(self):
+        return "NuAnimDataChunk({})".format(self.curvesets)
+
 
 class NuAnimCurveSet:
     def __init__(self, data, offset, chunk_keys_offset, chunk_curves_offset):
-        flags = read_u32(data, offset)
-        self.has_rotation = (flags & 0x01) != 0
-        self.has_scale = (flags & 0x08) != 0
+        self.flags = read_u32(data, offset)
+        self.has_rotation = (self.flags & 0x01) != 0
+        self.has_scale = (self.flags & 0x08) != 0
 
         constants_offset = read_u32(data, offset + 0x04)
         curves_offset = read_u32(data, offset + 0x08)
@@ -284,6 +290,11 @@ class NuAnimCurveSet:
                             data, curves_offset_i, None
                         )
 
+    def __repr__(self):
+        return "NuAnimCurveSet(flags = 0b{:08b}, curves = {}, constants = {})".format(
+            self.flags, self.curves, self.constants
+        )
+
 
 class NuAnimCurve:
     SIZE = 0x10
@@ -309,6 +320,9 @@ class NuAnimCurve:
 
                 self.keys.append(NuAnimKey(data, keys_offset_i))
 
+    def __repr__(self):
+        return "NuAnimCurve(mask = 0b{:032b}, keys = {})".format(self.mask, self.keys)
+
 
 class NuAnimKey:
     SIZE = 0x10
@@ -319,7 +333,7 @@ class NuAnimKey:
         self.c = read_f32(data, offset + 0x08)
         self.d = read_f32(data, offset + 0x0C)
 
-    def __str__(self):
+    def __repr__(self):
         return "NuAnimKey(time = {}, delta_time = {}, c = {}, d = {})".format(
             self.time, self.delta_time, self.c, self.d
         )

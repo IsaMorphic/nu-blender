@@ -32,6 +32,7 @@ def import_nup(context, filepath):
 
     scene = bpy.context.scene
     scene.name = scene_name
+    scene.render.fps = 60
 
     image_names = []
     for texture in nup.textures:
@@ -151,84 +152,129 @@ def import_nup(context, filepath):
         strip = layer.strips.new()
         bag = strip.channelbag(object_slot, ensure=True)
 
-        x_translation_curve = bag.fcurves.new("delta_location", index=0)
-        y_translation_curve = bag.fcurves.new("delta_location", index=1)
-        z_translation_curve = bag.fcurves.new("delta_location", index=2)
-
-        anim_length = math.floor(anim.length) - 1
+        anim_length = math.floor(anim.length)
         for frame in range(anim_length):
             chunk_idx = frame // 32
             frame_in_chunk = frame - chunk_idx * 32
 
+            if chunk_idx >= len(anim.chunks):
+                continue
+
+            # The game has runtime corrections to the coordinate system used in
+            # its animations. In order to correctly replicate the effect on
+            # rotations, we reconstruct the final transform for each keyframe
+            # and decompose it back into its channels for Blender.
             curveset = anim.chunks[chunk_idx].curvesets[0]
 
             if curveset.has_rotation:
                 x_rot = curveset_key_for_frame(
-                    curveset, NuAnimComponent.X_ROTATION, frame
+                    curveset, NuAnimComponent.X_ROTATION, frame_in_chunk
                 )
-                if x_rot is not None:
-                    x_rotation_curve = bag.fcurves.ensure(
-                        "rotation_euler", index=0
-                    )
-                    x_rotation_curve.keyframe_points.insert(frame, x_rot - math.pi / 2.0)
-
                 y_rot = curveset_key_for_frame(
-                    curveset, NuAnimComponent.Y_ROTATION, frame
+                    curveset, NuAnimComponent.Y_ROTATION, frame_in_chunk
                 )
-                if y_rot is not None:
-                    z_rotation_curve = bag.fcurves.ensure(
-                        "rotation_euler", index=2
-                    )
-                    z_rotation_curve.keyframe_points.insert(frame, y_rot + math.pi)
-
                 z_rot = curveset_key_for_frame(
-                    curveset, NuAnimComponent.Z_ROTATION, frame
+                    curveset, NuAnimComponent.Z_ROTATION, frame_in_chunk
                 )
-                if z_rot is not None:
-                    y_rotation_curve = bag.fcurves.ensure(
-                        "rotation_euler", index=1
-                    )
-                    y_rotation_curve.keyframe_points.insert(frame, z_rot)
+
+                rotation = mathutils.Euler((x_rot, y_rot, z_rot), "XYZ")
+            else:
+                rotation = mathutils.Euler((0.0, 0.0, 0.0), "XYZ")
 
             if curveset.has_scale:
                 x_scale = curveset_key_for_frame(
-                    curveset, NuAnimComponent.X_SCALE, frame
+                    curveset, NuAnimComponent.X_SCALE, frame_in_chunk
                 )
-                if x_scale is not None:
-                    x_scale_curve = bag.fcurves.ensure("scale", index=0)
-                    x_scale_curve.keyframe_points.insert(frame, x_scale)
-
                 y_scale = curveset_key_for_frame(
-                    curveset, NuAnimComponent.Y_SCALE, frame
+                    curveset, NuAnimComponent.Y_SCALE, frame_in_chunk
                 )
-                if y_scale is not None:
-                    z_scale_curve = bag.fcurves.ensure("scale", index=2)
-                    z_scale_curve.keyframe_points.insert(frame, y_scale)
-
                 z_scale = curveset_key_for_frame(
-                    curveset, NuAnimComponent.Z_SCALE, frame
+                    curveset, NuAnimComponent.Z_SCALE, frame_in_chunk
                 )
-                if z_scale is not None:
-                    y_scale_curve = bag.fcurves.ensure("scale", index=1)
-                    y_scale_curve.keyframe_points.insert(frame, z_scale)
+
+                scale = mathutils.Vector((x_scale, y_scale, z_scale))
+            else:
+                scale = mathutils.Vector((1.0, 1.0, 1.0))
 
             x = curveset_key_for_frame(
                 curveset, NuAnimComponent.X_TRANSLATION, frame_in_chunk
             )
-            if x is not None:
-                x_translation_curve.keyframe_points.insert(frame, x)
-
             y = curveset_key_for_frame(
                 curveset, NuAnimComponent.Y_TRANSLATION, frame_in_chunk
             )
-            if y is not None:
-                z_translation_curve.keyframe_points.insert(frame, y)
-
             z = curveset_key_for_frame(
                 curveset, NuAnimComponent.Z_TRANSLATION, frame_in_chunk
             )
-            if z is not None:
-                y_translation_curve.keyframe_points.insert(frame, -z)
+
+            transform = mathutils.Matrix.LocRotScale(
+                mathutils.Vector((x, y, z)), rotation, scale
+            )
+
+            # Correct the coordinate system of the original data, as during the
+            # game's runtime.
+            for i in range(4):
+                transform[i][2] = -transform[i][2]
+            for j in range(4):
+                transform[2][j] = -transform[2][j]
+
+            # Swap the y and z axes for Blender's sake.
+            transform = (
+                mathutils.Matrix(
+                    (
+                        (1.0, 0.0, 0.0, 0.0),
+                        (0.0, 0.0, 1.0, 0.0),
+                        (0.0, 1.0, 0.0, 0.0),
+                        (0.0, 0.0, 0.0, 1.0),
+                    )
+                )
+                @ transform
+            )
+
+            translation, rotation, scale = transform.decompose()
+
+            def last_key_value(curve):
+                return curve.keyframe_points[-1].co[1]
+
+            def add_keyframe_for_curve(prop, index, value):
+                curve = bag.fcurves.ensure(prop, index=index)
+                if len(curve.keyframe_points) == 0 or last_key_value(curve) != value:
+                    curve.keyframe_points.insert(frame + 1, value)
+
+            # Build the Blender keyframe.
+            if curveset.has_rotation:
+                w_curve = bag.fcurves.ensure("rotation_quaternion", index=0)
+                if len(w_curve.keyframe_points) != 0:
+                    # Ensure that the quaternion's direction of rotation is
+                    # correct for proper interpolation.
+                    x_curve = bag.fcurves.ensure("rotation_quaternion", index=1)
+                    y_curve = bag.fcurves.ensure("rotation_quaternion", index=2)
+                    z_curve = bag.fcurves.ensure("rotation_quaternion", index=3)
+
+                    prev_quat = mathutils.Quaternion(
+                        (
+                            last_key_value(w_curve),
+                            last_key_value(x_curve),
+                            last_key_value(y_curve),
+                            last_key_value(z_curve),
+                        )
+                    )
+
+                    if rotation.dot(prev_quat) < 0:
+                        rotation = -rotation
+
+                add_keyframe_for_curve("rotation_quaternion", 0, rotation.w)
+                add_keyframe_for_curve("rotation_quaternion", 1, rotation.x)
+                add_keyframe_for_curve("rotation_quaternion", 2, rotation.y)
+                add_keyframe_for_curve("rotation_quaternion", 3, rotation.z)
+
+            if curveset.has_scale:
+                add_keyframe_for_curve("scale", 0, scale.x)
+                add_keyframe_for_curve("scale", 1, scale.y)
+                add_keyframe_for_curve("scale", 2, scale.z)
+
+            add_keyframe_for_curve("delta_location", 0, translation.x)
+            add_keyframe_for_curve("delta_location", 1, translation.y)
+            add_keyframe_for_curve("delta_location", 2, translation.z)
 
     # Group instances by their objid so that we can create a single mesh object
     # and provide it to each instance.
@@ -385,7 +431,9 @@ def import_nup(context, filepath):
                 @ transform
             )
 
-            obj.rotation_euler.order = "XZY"
+            # Animations use the `rotation_quaternion` property, so we need to
+            # set the object's rotation mode to match.
+            obj.rotation_mode = "QUATERNION"
 
             obj.matrix_world = transform
 
@@ -521,17 +569,11 @@ def curveset_key_for_frame(curveset, component, frame):
     curve = curveset.curves.get(component)
     if curve is not None:
         key_idx = curve_key_idx_for_frame(curve, frame)
-        if key_idx is not None:
-            return curve.keys[key_idx].d
-    elif frame == 0:
+        return curve.keys[key_idx].d
+    else:
         return curveset.constants[component]
-
-    return None
 
 
 def curve_key_idx_for_frame(curve, frame):
-    frame_mask = 1 << frame
-    if curve.mask & frame_mask != 0:
-        return (curve.mask & (frame_mask - 1)).bit_count()
-    else:
-        return None
+    frame_mask = 1 << frame + 1
+    return (curve.mask & (frame_mask - 1)).bit_count() - 1
