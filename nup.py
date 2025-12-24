@@ -236,19 +236,19 @@ def import_nup(context, filepath):
                 return curve.keyframe_points[-1].co[1]
 
             def add_keyframe_for_curve(prop, index, value):
-                curve = bag.fcurves.ensure(prop, index=index)
+                curve = bag.fcurves.find(prop, index=index) or bag.fcurves.new(prop, index=index)
                 if len(curve.keyframe_points) == 0 or last_key_value(curve) != value:
                     curve.keyframe_points.insert(frame + 1, value)
 
             # Build the Blender keyframe.
             if curveset.has_rotation:
-                w_curve = bag.fcurves.ensure("rotation_quaternion", index=0)
+                w_curve = bag.fcurves.find("rotation_quaternion", index=0) or bag.fcurves.new("rotation_quaternion", index=0)
                 if len(w_curve.keyframe_points) != 0:
                     # Ensure that the quaternion's direction of rotation is
                     # correct for proper interpolation.
-                    x_curve = bag.fcurves.ensure("rotation_quaternion", index=1)
-                    y_curve = bag.fcurves.ensure("rotation_quaternion", index=2)
-                    z_curve = bag.fcurves.ensure("rotation_quaternion", index=3)
+                    x_curve = bag.fcurves.find("rotation_quaternion", index=1) or bag.fcurves.new("rotation_quaternion", index=1)
+                    y_curve = bag.fcurves.find("rotation_quaternion", index=2) or bag.fcurves.new("rotation_quaternion", index=2)
+                    z_curve = bag.fcurves.find("rotation_quaternion", index=3) or bag.fcurves.new("rotation_quaternion", index=3)
 
                     prev_quat = mathutils.Quaternion(
                         (
