@@ -437,7 +437,7 @@ def import_nup(context, filepath):
 
             obj.matrix_world = transform
 
-            if instance.anim is not None:
+            if instance.anim is not None and len(action_names) > instance.anim.anim_idx:
                 action_name = action_names[instance.anim.anim_idx]
 
                 if action_name is not None:
