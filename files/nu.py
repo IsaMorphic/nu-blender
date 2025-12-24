@@ -175,7 +175,7 @@ class NuVec:
         self.y = read_f32(data, offset + 0x04)
         self.z = read_f32(data, offset + 0x08)
 
-    def __str__(self):
+    def __repr__(self):
         return "NuVec({}, {}, {})".format(self.x, self.y, self.z)
 
 
