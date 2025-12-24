@@ -577,17 +577,68 @@ def import_nup(context, filepath):
 
         blend_mesh = bmesh.new()
 
-        for point in situ.model.points:
-            blend_mesh.verts.new((point.x, point.z, point.y))
+        blend_mesh.verts.new((situ.model.min_x, situ.model.min_z, situ.model.min_y)) # 0
+        blend_mesh.verts.new((situ.model.min_x, situ.model.min_z, situ.model.max_y)) # 1
+        blend_mesh.verts.new((situ.model.min_x, situ.model.max_z, situ.model.min_y)) # 2
+        blend_mesh.verts.new((situ.model.min_x, situ.model.max_z, situ.model.max_y)) # 3
+        blend_mesh.verts.new((situ.model.max_x, situ.model.min_z, situ.model.min_y)) # 4
+        blend_mesh.verts.new((situ.model.max_x, situ.model.min_z, situ.model.max_y)) # 5
+        blend_mesh.verts.new((situ.model.max_x, situ.model.max_z, situ.model.min_y)) # 6
+        blend_mesh.verts.new((situ.model.max_x, situ.model.max_z, situ.model.max_y)) # 7
 
         blend_mesh.verts.ensure_lookup_table()
 
-        face = blend_mesh.faces.new(
+        blend_mesh.faces.new(
             (
                 blend_mesh.verts[0],
                 blend_mesh.verts[1],
+                blend_mesh.verts[5],
+                blend_mesh.verts[4],
+            )
+        )
+
+        blend_mesh.faces.new(
+            (
                 blend_mesh.verts[2],
                 blend_mesh.verts[3],
+                blend_mesh.verts[7],
+                blend_mesh.verts[6],
+            )
+        )
+
+        blend_mesh.faces.new(
+            (
+                blend_mesh.verts[5],
+                blend_mesh.verts[1],
+                blend_mesh.verts[3],
+                blend_mesh.verts[7],
+            )
+        )
+
+        blend_mesh.faces.new(
+            (
+                blend_mesh.verts[4],
+                blend_mesh.verts[0],
+                blend_mesh.verts[2],
+                blend_mesh.verts[6],
+            )
+        )
+
+        blend_mesh.faces.new(
+            (
+                blend_mesh.verts[1],
+                blend_mesh.verts[0],
+                blend_mesh.verts[2],
+                blend_mesh.verts[3],
+            )
+        )
+
+        blend_mesh.faces.new(
+            (
+                blend_mesh.verts[5],
+                blend_mesh.verts[4],
+                blend_mesh.verts[6],
+                blend_mesh.verts[7],
             )
         )
 
@@ -597,9 +648,6 @@ def import_nup(context, filepath):
         blend_mesh.free()
 
         obj = bpy.data.objects.new("Situ", mesh)
-        obj.location = mathutils.Vector(
-            (situ.location.x, situ.location.z, situ.location.y)
-        )
 
         bpy.context.collection.objects.link(obj)
         obj.hide_set(True, view_layer=obj_layer)

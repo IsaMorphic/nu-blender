@@ -41,6 +41,15 @@ class TerSitu:
 
 class TerTerrain:
     def __init__(self, data, offset):
+        self.min_x = read_f32(data, offset + 0x00)
+        self.max_x = read_f32(data, offset + 0x04)
+
+        self.min_y = read_f32(data, offset + 0x08)
+        self.max_y = read_f32(data, offset + 0x0C)
+
+        self.min_z = read_f32(data, offset + 0x10)
+        self.max_z = read_f32(data, offset + 0x14)
+        
         self.points = []
         for i in range(4):
             self.points.append(NuVec(data, offset + 0x18 + i * NuVec.SIZE))
