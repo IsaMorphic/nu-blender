@@ -91,10 +91,6 @@ def import_nup(context, filepath):
             color_mix_node.blend_type = "MULTIPLY"
 
             node_tree.links.new(
-                color_mix_node.outputs["Color"], bsdf_node.inputs["Base Color"]
-            )
-
-            node_tree.links.new(
                 texture_node.outputs["Color"], color_mix_node.inputs["Color1"]
             )
 
@@ -103,15 +99,23 @@ def import_nup(context, filepath):
             )
 
             match material.alpha_mode:
-                case NuAlphaMode.STRAIGHT:
-                    # No special handling needed. 'Straight' alpha.
-                    pass
                 case NuAlphaMode.LINEAR_ADD:
                     # Emissive material.
                     bsdf_node.inputs["Emission Strength"].default_value = 1.0
                     node_tree.links.new(
                         color_mix_node.outputs["Color"],
                         bsdf_node.inputs["Emission Color"],
+                    )
+                    node_tree.links.new(
+                        color_mix_node.outputs["Color"], bsdf_node.inputs["Base Color"]
+                    )
+                case NuAlphaMode.DARKEN_ALPHA_ONLY:
+                    # Used only for shadows, so we set base color to black.
+                    bsdf_node.inputs["Base Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+                case _:
+                    # No special handling needed. 'Straight' alpha.
+                    node_tree.links.new(
+                        color_mix_node.outputs["Color"], bsdf_node.inputs["Base Color"]
                     )
 
             if material.alpha_mode != NuAlphaMode.NONE:
@@ -155,19 +159,24 @@ def import_nup(context, filepath):
                 vert_color_node.outputs["Color"], color_mix_node.inputs["Color2"]
             )
 
-            node_tree.links.new(
-                color_mix_node.outputs["Color"], bsdf_node.inputs["Base Color"]
-            )
-
             match material.alpha_mode:
-                case NuAlphaMode.STRAIGHT:
-                    # No special handling needed. 'Straight' alpha.
-                    pass
                 case NuAlphaMode.LINEAR_ADD:
+                    # Emissive material.
                     bsdf_node.inputs["Emission Strength"].default_value = 1.0
                     node_tree.links.new(
                         vert_color_node.outputs["Color"],
                         bsdf_node.inputs["Emission Color"],
+                    )
+                    node_tree.links.new(
+                        color_mix_node.outputs["Color"], bsdf_node.inputs["Base Color"]
+                    )
+                case NuAlphaMode.DARKEN_ALPHA_ONLY:
+                    # Darken by multiplying with inverse of vertex color alpha.
+                    bsdf_node.inputs["Base Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+                case _:
+                    # No special handling needed. 'Straight' alpha.
+                    node_tree.links.new(
+                        color_mix_node.outputs["Color"], bsdf_node.inputs["Base Color"]
                     )
 
             if material.alpha_mode != NuAlphaMode.NONE:
