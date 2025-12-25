@@ -232,23 +232,26 @@ def import_nup(context, filepath):
 
             translation, rotation, scale = transform.decompose()
 
+            def ensure_curve_for_property(prop, index):
+                return bag.fcurves.find(prop, index=index) or bag.fcurves.new(prop, index=index)
+
             def last_key_value(curve):
                 return curve.keyframe_points[-1].co[1]
 
             def add_keyframe_for_curve(prop, index, value):
-                curve = bag.fcurves.ensure(prop, index=index)
+                curve = ensure_curve_for_property(prop, index)
                 if len(curve.keyframe_points) == 0 or last_key_value(curve) != value:
                     curve.keyframe_points.insert(frame + 1, value)
 
             # Build the Blender keyframe.
             if curveset.has_rotation:
-                w_curve = bag.fcurves.ensure("rotation_quaternion", index=0)
+                w_curve = ensure_curve_for_property("rotation_quaternion", index=0)
                 if len(w_curve.keyframe_points) != 0:
                     # Ensure that the quaternion's direction of rotation is
                     # correct for proper interpolation.
-                    x_curve = bag.fcurves.ensure("rotation_quaternion", index=1)
-                    y_curve = bag.fcurves.ensure("rotation_quaternion", index=2)
-                    z_curve = bag.fcurves.ensure("rotation_quaternion", index=3)
+                    x_curve = ensure_curve_for_property("rotation_quaternion", index=1)
+                    y_curve = ensure_curve_for_property("rotation_quaternion", index=2)
+                    z_curve = ensure_curve_for_property("rotation_quaternion", index=3)
 
                     prev_quat = mathutils.Quaternion(
                         (
@@ -437,7 +440,11 @@ def import_nup(context, filepath):
 
             obj.matrix_world = transform
 
-            if instance.anim is not None:
+            if instance.anim is not None and ( 
+                # Sometimes, anim_idx is out of range because of stale 
+                # data, so we implicitly dereference by ignoring those cases.
+                len(action_names) > instance.anim.anim_idx 
+                ):
                 action_name = action_names[instance.anim.anim_idx]
 
                 if action_name is not None:
