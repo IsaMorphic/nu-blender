@@ -29,7 +29,7 @@ class NuAlphaMode(Enum):
     NONE = 0x0
     STRAIGHT = 0x1
     LINEAR_ADD = 0x2
-    DARKEN_ALPHA_ONLY = 0x3
+    DARKEN_SRCALPHA = 0x3
 
 
 class NuMaterial:
