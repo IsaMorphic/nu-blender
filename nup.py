@@ -73,11 +73,6 @@ def import_nup(context, filepath):
             material.alpha,
         )
 
-        bsdf_node = node_tree.nodes.get("Principled BSDF") or node_tree.nodes.new(
-            "ShaderNodeBsdfPrincipled"
-        )
-        bsdf_node.inputs["Roughness"].default_value = 1.0
-
         vert_color_node = node_tree.nodes.new("ShaderNodeVertexColor")
         vert_color_node.layer_name = "Col"
 
@@ -99,50 +94,95 @@ def import_nup(context, filepath):
             )
 
             match material.alpha_mode:
-                case NuAlphaMode.LINEAR_ADD:
-                    # Emissive material.
-                    bsdf_node.inputs["Emission Strength"].default_value = 1.0
+                case NuAlphaMode.LINEAR_ADD | NuAlphaMode.LIGHTEN_SRCALPHA:
+                    # Additive blending. Use emissive material to simulate.
+                    source_node = node_tree.nodes.new("ShaderNodeEmission")
+                    source_node.inputs["Strength"].default_value = 1.0
+
                     node_tree.links.new(
                         color_mix_node.outputs["Color"],
-                        bsdf_node.inputs["Emission Color"],
-                    )
-                    node_tree.links.new(
-                        color_mix_node.outputs["Color"], bsdf_node.inputs["Base Color"]
+                        source_node.inputs["Color"],
                     )
                 case NuAlphaMode.DARKEN_SRCALPHA:
-                    # Used only for shadows, so we set base color to black.
-                    bsdf_node.inputs["Base Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+                    # Subtractive blending, equivalent to blending with black. 
+                    # Use emissive material to simulate.
+                    source_node = node_tree.nodes.new("ShaderNodeEmission")
+                    source_node.inputs["Strength"].default_value = 1.0
+                    source_node.inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
                 case _:
                     # No special handling needed. 'Straight' alpha.
+                    source_node = node_tree.nodes.new("ShaderNodeBsdfDiffuse")
+                    source_node.inputs["Roughness"].default_value = 1.0
+
                     node_tree.links.new(
-                        color_mix_node.outputs["Color"], bsdf_node.inputs["Base Color"]
+                        color_mix_node.outputs["Color"], source_node.inputs["Color"]
                     )
-
-            if material.alpha_mode != NuAlphaMode.NONE:
-                # The `alpha` attribute is set, so blend the alpha channels as
-                # well.
-                alpha_mix_node = node_tree.nodes.new("ShaderNodeMix")
-                alpha_mix_node.blend_type = "MULTIPLY"
-                alpha_mix_node.data_type = "FLOAT"
-
-                node_tree.links.new(
-                    alpha_mix_node.outputs["Result"], bsdf_node.inputs["Alpha"]
-                )
-
-                node_tree.links.new(
-                    texture_node.outputs["Alpha"], alpha_mix_node.inputs["A"]
-                )
-
-                node_tree.links.new(
-                    vert_color_node.outputs["Alpha"], alpha_mix_node.inputs["B"]
-                )
 
             output_node = node_tree.nodes.get("Material Output") or node_tree.nodes.new(
                 "ShaderNodeOutputMaterial"
             )
-            node_tree.links.new(
-                bsdf_node.outputs["BSDF"], output_node.inputs["Surface"]
-            )
+
+            # The `alpha` attribute is set, so blend the alpha channels as well.
+            if material.alpha_mode != NuAlphaMode.NONE:
+
+                # Invert alpha for transparency shader, which uses 0 = opaque,
+                # 1 = transparent.
+                alpha_invert_node = node_tree.nodes.new("ShaderNodeMath")
+                alpha_invert_node.operation = "SUBTRACT"
+                alpha_invert_node.inputs[0].default_value = 1.0
+
+                match material.alpha_mode:
+                    case NuAlphaMode.LINEAR_ADD | NuAlphaMode.DARKEN_SRCALPHA:
+                        # Interpret pixel brightness of texture as alpha.
+                        node_tree.links.new(
+                            texture_node.outputs["Color"], alpha_invert_node.inputs[1]
+                        )
+                    case NuAlphaMode.STRAIGHT:
+                        # Multiply texture alpha and vertex color alpha.
+                        alpha_mix_node = node_tree.nodes.new("ShaderNodeMix")
+                        alpha_mix_node.blend_type = "MULTIPLY"
+                        alpha_mix_node.data_type = "FLOAT"
+
+                        node_tree.links.new(
+                            texture_node.outputs["Alpha"], alpha_mix_node.inputs["A"]
+                        )
+
+                        node_tree.links.new(
+                            vert_color_node.outputs["Alpha"], alpha_mix_node.inputs["B"]
+                        )
+
+                        node_tree.links.new(
+                            alpha_mix_node.outputs["Result"], alpha_invert_node.inputs[1]
+                        )
+
+                # Create transparency shader.
+                transparent_bsdf_node = node_tree.nodes.new(
+                    "ShaderNodeBsdfTransparent"
+                )
+
+                node_tree.links.new(
+                    alpha_invert_node.outputs[0], transparent_bsdf_node.inputs["Color"]
+                )
+
+                # Combine main shader and transparency shader.
+                add_shader_node = node_tree.nodes.new("ShaderNodeAddShader")
+
+                node_tree.links.new(
+                    source_node.outputs[0], add_shader_node.inputs[0]
+                )
+
+                node_tree.links.new(
+                    transparent_bsdf_node.outputs["BSDF"], add_shader_node.inputs[1]
+                )
+
+                node_tree.links.new(
+                    add_shader_node.outputs["Shader"], output_node.inputs["Surface"]
+                )
+            else:
+                # No transparency; link directly.
+                node_tree.links.new(
+                    source_node.outputs[0], output_node.inputs["Surface"]
+                )
         else:
             # Sometimes, all vertices are white, in which case we blend with material color
             color_mix_node = node_tree.nodes.new("ShaderNodeMixRGB")
@@ -160,30 +200,73 @@ def import_nup(context, filepath):
             )
 
             match material.alpha_mode:
-                case NuAlphaMode.LINEAR_ADD:
-                    # Emissive material.
-                    bsdf_node.inputs["Emission Strength"].default_value = 1.0
+                case NuAlphaMode.LINEAR_ADD | NuAlphaMode.LIGHTEN_SRCALPHA:
+                    # Additive blending. Use emissive material to simulate.
+                    source_node = node_tree.nodes.new("ShaderNodeEmission")
+                    source_node.inputs["Strength"].default_value = 1.0
                     node_tree.links.new(
                         color_mix_node.outputs["Color"],
-                        bsdf_node.inputs["Emission Color"],
-                    )
-                    node_tree.links.new(
-                        color_mix_node.outputs["Color"], bsdf_node.inputs["Base Color"]
+                        source_node.inputs["Color"],
                     )
                 case NuAlphaMode.DARKEN_SRCALPHA:
-                    # Used only for shadows, so we set base color to black.
-                    bsdf_node.inputs["Base Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+                    # Subtractive blending, equivalent to blending with black. 
+                    # Use emissive material to simulate.
+                    source_node = node_tree.nodes.new("ShaderNodeEmission")
+                    source_node.inputs["Strength"].default_value = 1.0
+                    source_node.inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
                 case _:
                     # No special handling needed. 'Straight' alpha.
+                    source_node = node_tree.nodes.new("ShaderNodeBsdfDiffuse")
+                    source_node.inputs["Roughness"].default_value = 1.0
+
                     node_tree.links.new(
-                        color_mix_node.outputs["Color"], bsdf_node.inputs["Base Color"]
+                        color_mix_node.outputs["Color"], source_node.inputs["Color"]
                     )
 
+            output_node = node_tree.nodes.get("Material Output") or node_tree.nodes.new(
+                "ShaderNodeOutputMaterial"
+            )
+
+            # The `alpha` attribute is set, so blend the alpha channels as well.
             if material.alpha_mode != NuAlphaMode.NONE:
+                # Invert alpha for transparency shader, which uses 0 = opaque,
+                # 1 = transparent.
+                alpha_invert_node = node_tree.nodes.new("ShaderNodeMath")
+                alpha_invert_node.operation = "SUBTRACT"
+                alpha_invert_node.inputs[0].default_value = 1.0
+
                 node_tree.links.new(
-                    vert_color_node.outputs["Alpha"], bsdf_node.inputs["Alpha"]
+                    vert_color_node.outputs["Alpha"], alpha_invert_node.inputs[1]
                 )
 
+                # Create transparency shader.
+                transparent_bsdf_node = node_tree.nodes.new(
+                    "ShaderNodeBsdfTransparent"
+                )
+
+                node_tree.links.new(
+                    alpha_invert_node.outputs[0], transparent_bsdf_node.inputs["Color"]
+                )
+
+                # Combine main shader and transparency shader.
+                add_shader_node = node_tree.nodes.new("ShaderNodeAddShader")
+
+                node_tree.links.new(
+                    source_node.outputs[0], add_shader_node.inputs[0]
+                )
+
+                node_tree.links.new(
+                    transparent_bsdf_node.outputs["BSDF"], add_shader_node.inputs[1]
+                )
+
+                node_tree.links.new(
+                    add_shader_node.outputs["Shader"], output_node.inputs["Surface"]
+                )
+            else:
+                # No transparency; link directly.
+                node_tree.links.new(
+                    source_node.outputs[0], output_node.inputs["Surface"]
+                )
 
     action_names = []
     for anim in nup.scene.anim_data:
