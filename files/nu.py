@@ -31,8 +31,8 @@ class NuAlphaMode(Enum):
     LINEAR_ADD = 0x2
     DARKEN_SRCALPHA = 0x3
     LIGHTEN_SRCALPHA = 0x5
-    UNKNOWN1 = 0x7
-    UNKNOWN2 = 0xA
+    UNDEFINED = 0x7
+    MASKED = 0xA
 
 
 class NuMaterial:

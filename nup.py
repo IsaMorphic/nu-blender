@@ -132,7 +132,7 @@ def import_nup(context, filepath):
                 alpha_invert_node.inputs[0].default_value = 1.0
 
                 match material.alpha_mode:
-                    case NuAlphaMode.STRAIGHT | NuAlphaMode.UNKNOWN2:
+                    case NuAlphaMode.STRAIGHT | NuAlphaMode.MASKED:
                         # Multiply texture alpha and material alpha.
                         alpha_mix_node = node_tree.nodes.new("ShaderNodeMath")
                         alpha_mix_node.operation = "MULTIPLY"
