@@ -230,7 +230,11 @@ def import_nup(context, filepath):
                 alpha_invert_node = node_tree.nodes.new("ShaderNodeMath")
                 alpha_invert_node.operation = "SUBTRACT"
                 alpha_invert_node.inputs[0].default_value = 1.0
-                alpha_invert_node.inputs[0].default_value = material.alpha
+                
+                # Use vertex color alpha channel in absence of texture.
+                node_tree.links.new(
+                    vert_color_node.outputs["Alpha"], alpha_invert_node.inputs[1]
+                )
 
                 # Create transparency shader.
                 transparent_bsdf_node = node_tree.nodes.new(
