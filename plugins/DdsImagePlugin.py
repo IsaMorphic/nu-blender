@@ -56,22 +56,22 @@ def _dxt1(data: IO[bytes], width: int, height: int) -> bytes:
                     control = bits & 3
                     bits = bits >> 2
                     if control == 0:
-                        r, g, b = r0, g0, b0
+                        r, g, b, a = r0, g0, b0, 255
                     elif control == 1:
-                        r, g, b = r1, g1, b1
+                        r, g, b, a = r1, g1, b1, 255
                     elif control == 2:
                         if color0 > color1:
-                            r, g, b = _c2a(r0, r1), _c2a(g0, g1), _c2a(b0, b1)
+                            r, g, b, a = _c2a(r0, r1), _c2a(g0, g1), _c2a(b0, b1), 255
                         else:
-                            r, g, b = _c2b(r0, r1), _c2b(g0, g1), _c2b(b0, b1)
+                            r, g, b, a = _c2b(r0, r1), _c2b(g0, g1), _c2b(b0, b1), 255
                     elif control == 3:
                         if color0 > color1:
-                            r, g, b = _c3(r0, r1), _c3(g0, g1), _c3(b0, b1)
+                            r, g, b, a = _c3(r0, r1), _c3(g0, g1), _c3(b0, b1), 255
                         else:
-                            r, g, b = 0, 0, 0
+                            r, g, b, a = 0, 0, 0, 0
 
                     idx = 4 * ((y + j) * width + x + i)
-                    ret[idx : idx + 4] = struct.pack("4B", r, g, b, 255)
+                    ret[idx : idx + 4] = struct.pack("4B", r, g, b, a)
 
     return bytes(ret)
 
