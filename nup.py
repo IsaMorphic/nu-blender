@@ -132,27 +132,26 @@ def import_nup(context, filepath):
                 alpha_invert_node.inputs[0].default_value = 1.0
 
                 match material.alpha_mode:
-                    case NuAlphaMode.LINEAR_ADD | NuAlphaMode.DARKEN_SRCALPHA:
+                    case NuAlphaMode.STRAIGHT:
+                        # Multiply texture alpha and vertex color alpha.
+                        alpha_mix_node = node_tree.nodes.new("ShaderNodeMath")
+                        alpha_mix_node.operation = "MULTIPLY"
+
+                        node_tree.links.new(
+                            texture_node.outputs["Alpha"], alpha_mix_node.inputs[0]
+                        )
+
+                        node_tree.links.new(
+                            vert_color_node.outputs["Alpha"], alpha_mix_node.inputs[1]
+                        )
+
+                        node_tree.links.new(
+                            alpha_mix_node.outputs[0], alpha_invert_node.inputs[1]
+                        )
+                    case _:
                         # Interpret pixel brightness of texture as alpha.
                         node_tree.links.new(
                             texture_node.outputs["Color"], alpha_invert_node.inputs[1]
-                        )
-                    case NuAlphaMode.STRAIGHT:
-                        # Multiply texture alpha and vertex color alpha.
-                        alpha_mix_node = node_tree.nodes.new("ShaderNodeMix")
-                        alpha_mix_node.blend_type = "MULTIPLY"
-                        alpha_mix_node.data_type = "FLOAT"
-
-                        node_tree.links.new(
-                            texture_node.outputs["Alpha"], alpha_mix_node.inputs["A"]
-                        )
-
-                        node_tree.links.new(
-                            vert_color_node.outputs["Alpha"], alpha_mix_node.inputs["B"]
-                        )
-
-                        node_tree.links.new(
-                            alpha_mix_node.outputs["Result"], alpha_invert_node.inputs[1]
                         )
 
                 # Create transparency shader.
