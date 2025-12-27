@@ -133,7 +133,7 @@ def import_nup(context, filepath):
 
                 match material.alpha_mode:
                     case NuAlphaMode.STRAIGHT | NuAlphaMode.UNKNOWN2:
-                        # Multiply texture alpha and vertex color alpha.
+                        # Multiply texture alpha and material alpha.
                         alpha_mix_node = node_tree.nodes.new("ShaderNodeMath")
                         alpha_mix_node.operation = "MULTIPLY"
                         alpha_mix_node.inputs[0].default_value = material.alpha
