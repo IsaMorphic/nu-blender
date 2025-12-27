@@ -132,17 +132,14 @@ def import_nup(context, filepath):
                 alpha_invert_node.inputs[0].default_value = 1.0
 
                 match material.alpha_mode:
-                    case NuAlphaMode.STRAIGHT:
+                    case NuAlphaMode.STRAIGHT | NuAlphaMode.UNKNOWN2:
                         # Multiply texture alpha and vertex color alpha.
                         alpha_mix_node = node_tree.nodes.new("ShaderNodeMath")
                         alpha_mix_node.operation = "MULTIPLY"
+                        alpha_mix_node.inputs[0].default_value = material.alpha
 
                         node_tree.links.new(
-                            texture_node.outputs["Alpha"], alpha_mix_node.inputs[0]
-                        )
-
-                        node_tree.links.new(
-                            vert_color_node.outputs["Alpha"], alpha_mix_node.inputs[1]
+                            texture_node.outputs["Alpha"], alpha_mix_node.inputs[1]
                         )
 
                         node_tree.links.new(
@@ -233,10 +230,7 @@ def import_nup(context, filepath):
                 alpha_invert_node = node_tree.nodes.new("ShaderNodeMath")
                 alpha_invert_node.operation = "SUBTRACT"
                 alpha_invert_node.inputs[0].default_value = 1.0
-
-                node_tree.links.new(
-                    vert_color_node.outputs["Alpha"], alpha_invert_node.inputs[1]
-                )
+                alpha_invert_node.inputs[0].default_value = material.alpha
 
                 # Create transparency shader.
                 transparent_bsdf_node = node_tree.nodes.new(
