@@ -10,6 +10,8 @@ from PIL import Image
 from .files.nup import Nup, NuPrimType, RtlSet, RtlType
 from .files.nu import (
     NuAlphaMode,
+    NuAlphaTest,
+    NuAlphaTestMapping,
     NuAnimComponent,
     NuPlatform,
     NuTextureType,
@@ -67,6 +69,9 @@ def import_nup(context, filepath):
 
         image_names.append(blend_img.name)
 
+    # Get alpha test mapping for platform.
+    atst_mapping = NuAlphaTestMapping.PLATFORM_MAPPING[platform]
+
     material_names = []
     for material in nup.materials:
         blend_mat = bpy.data.materials.new("Material")
@@ -123,6 +128,53 @@ def import_nup(context, filepath):
                     )
                     return source_node
 
+        def get_alpha_output(alpha_pretest_pin):
+            # Invert alpha for transparency shader, which uses 0 = opaque,
+            # 1 = transparent.
+            alpha_invert_node = node_tree.nodes.new("ShaderNodeMath")
+            alpha_invert_node.operation = "SUBTRACT"
+            alpha_invert_node.inputs[0].default_value = 1.0
+
+            # Use vertex color alpha channel in absence of texture.
+            node_tree.links.new(alpha_pretest_pin, alpha_invert_node.inputs[1])
+
+            # Handle alpha testing if needed.
+            # We do this by creating a comparison node that outputs 1.0 if the
+            # alpha test passes and 0.0 otherwise, and then taking the minimum
+            # of this value and the inverted alpha. This way, if the alpha test
+            # fails, the output will be 0.0 (fully opaque),
+            atst_raw = material.alpha_test()
+            match atst_mapping[atst_raw]:
+                case NuAlphaTest.GREATER_EQUAL:
+                    cmp_node_op = "LESS_THAN"
+                case NuAlphaTest.LESS_EQUAL:
+                    cmp_node_op = "GREATER_THAN"
+                case NuAlphaTest.NONE:
+                    cmp_node_op = None
+
+            if cmp_node_op is not None:
+                # Create a comparison node to implement alpha testing.
+                alpha_cmp_node = node_tree.nodes.new("ShaderNodeMath")
+                alpha_cmp_node.operation = cmp_node_op
+                alpha_cmp_node.inputs[1].default_value = material.alpha_ref() / 255.0
+
+                node_tree.links.new(alpha_pretest_pin, alpha_cmp_node.inputs[0])
+
+                # Create a minimum node to combine alpha test result and
+                # allow alpha blending if applicable.
+                alpha_min_node = node_tree.nodes.new("ShaderNodeMath")
+                alpha_min_node.operation = "MINIMUM"
+
+                node_tree.links.new(alpha_cmp_node.outputs[0], alpha_min_node.inputs[0])
+
+                node_tree.links.new(
+                    alpha_invert_node.outputs[0], alpha_min_node.inputs[1]
+                )
+
+                return alpha_min_node.outputs[0]
+            else:
+                return alpha_invert_node.outputs[0]
+
         # Build shader node tree. If there's a texture,
         # we use this for diffuse or emissive color.
         if material.texture_idx != None:
@@ -155,39 +207,38 @@ def import_nup(context, filepath):
             # the main shader. The exact method depends on the alpha mode, but
             # generally we either use the texture alpha channel or the
             # brightness of the texture.
-            if material.alpha_mode() != NuAlphaMode.NONE:
-                # Invert alpha for transparency shader, which uses 0 = opaque,
-                # 1 = transparent.
-                alpha_invert_node = node_tree.nodes.new("ShaderNodeMath")
-                alpha_invert_node.operation = "SUBTRACT"
-                alpha_invert_node.inputs[0].default_value = 1.0
+            match material.alpha_mode():
+                case NuAlphaMode.MODE1 | NuAlphaMode.MODE10:
+                    # Multiply texture alpha and vertex color alpha.
+                    alpha_mix_node = node_tree.nodes.new("ShaderNodeMath")
+                    alpha_mix_node.operation = "MULTIPLY"
 
-                match material.alpha_mode():
-                    case NuAlphaMode.MODE1 | NuAlphaMode.MODE10:
-                        # Multiply texture alpha and material alpha.
-                        alpha_mix_node = node_tree.nodes.new("ShaderNodeMath")
-                        alpha_mix_node.operation = "MULTIPLY"
-                        alpha_mix_node.inputs[0].default_value = material.alpha
+                    node_tree.links.new(
+                        vert_color_node.outputs["Alpha"], alpha_mix_node.inputs[0]
+                    )
 
-                        node_tree.links.new(
-                            texture_node.outputs["Alpha"], alpha_mix_node.inputs[1]
-                        )
+                    node_tree.links.new(
+                        texture_node.outputs["Alpha"], alpha_mix_node.inputs[1]
+                    )
 
-                        node_tree.links.new(
-                            alpha_mix_node.outputs[0], alpha_invert_node.inputs[1]
-                        )
-                    case _:
-                        # Interpret pixel brightness of texture as alpha.
-                        node_tree.links.new(
-                            texture_node.outputs["Color"], alpha_invert_node.inputs[1]
-                        )
+                    alpha_pretest_pin = alpha_mix_node.outputs[0]
+                case NuAlphaMode.MODE2 | NuAlphaMode.MODE3 | NuAlphaMode.MODE5:
+                    # Interpret pixel brightness of texture as alpha.
+                    alpha_pretest_pin = texture_node.outputs["Color"]
+                case NuAlphaMode.NONE | _:
+                    # No alpha handling.
+                    alpha_pretest_pin = None
+
+            # If we have an alpha source, process it for transparency.
+            if alpha_pretest_pin is not None:
+                alpha_output_pin = get_alpha_output(alpha_pretest_pin)
 
                 # Create transparency shader.
                 transparent_bsdf_node = node_tree.nodes.new("ShaderNodeBsdfTransparent")
 
                 # Link inverted alpha to transparency shader color.
                 node_tree.links.new(
-                    alpha_invert_node.outputs[0], transparent_bsdf_node.inputs["Color"]
+                    alpha_output_pin, transparent_bsdf_node.inputs["Color"]
                 )
 
                 # Combine main shader and transparency shader.
@@ -208,6 +259,7 @@ def import_nup(context, filepath):
                 node_tree.links.new(
                     source_node.outputs[0], output_node.inputs["Surface"]
                 )
+
         # Otherwise, we just use vertex color for the diffuse/emissive color.
         # We also mix with the material color to avoid pure white in some specific cases.
         else:
@@ -240,22 +292,13 @@ def import_nup(context, filepath):
             # the main shader. The exact method depends on the alpha mode, but
             # generally we use the vertex color alpha channel.
             if material.alpha_mode() != NuAlphaMode.NONE:
-                # Invert alpha for transparency shader, which uses 0 = opaque,
-                # 1 = transparent.
-                alpha_invert_node = node_tree.nodes.new("ShaderNodeMath")
-                alpha_invert_node.operation = "SUBTRACT"
-                alpha_invert_node.inputs[0].default_value = 1.0
-
-                # Use vertex color alpha channel in absence of texture.
-                node_tree.links.new(
-                    vert_color_node.outputs["Alpha"], alpha_invert_node.inputs[1]
-                )
+                alpha_output_pin = get_alpha_output(vert_color_node.outputs["Alpha"])
 
                 # Create transparency shader.
                 transparent_bsdf_node = node_tree.nodes.new("ShaderNodeBsdfTransparent")
 
                 node_tree.links.new(
-                    alpha_invert_node.outputs[0], transparent_bsdf_node.inputs["Color"]
+                    alpha_output_pin, transparent_bsdf_node.inputs["Color"]
                 )
 
                 # Combine main shader and transparency shader.

@@ -30,6 +30,7 @@ class NuAlphaMode(Enum):
     MODE1 = 1
     MODE2 = 2
     MODE3 = 3
+    MODE4 = 4
     MODE5 = 5
     MODE7 = 7
     MODE10 = 10
@@ -37,8 +38,22 @@ class NuAlphaMode(Enum):
 
 class NuAlphaTest(Enum):
     NONE = 0
-    LESS_EQUAL = 3
-    GREATER_EQUAL = 5
+    LESS_EQUAL = 1
+    GREATER_EQUAL = 2
+
+
+class NuAlphaTestMapping:
+    PLATFORM_MAPPING = {
+        NuPlatform.PC: {
+            0: NuAlphaTest.NONE,
+            3: NuAlphaTest.LESS_EQUAL,
+            5: NuAlphaTest.GREATER_EQUAL,
+        },
+        NuPlatform.XBOX: {
+            0: NuAlphaTest.GREATER_EQUAL,
+            5: NuAlphaTest.GREATER_EQUAL,
+        },
+    }
 
 
 class NuMaterial:
@@ -76,7 +91,7 @@ class NuMaterial:
         return NuAlphaMode(self.attributes & 0xF)
 
     def alpha_test(self):
-        return NuAlphaTest((self.attributes & 0x700000) >> 20)
+        return (self.attributes & 0x700000) >> 20
 
     def alpha_ref(self):
         return (self.attributes & 0x7F800000) >> 23
