@@ -8,7 +8,14 @@ import os
 from PIL import Image
 
 from .files.nup import Nup, NuPrimType, RtlSet, RtlType
-from .files.nu import NuPlatform, NuTextureType, NuAlphaMode, NuAnimComponent, NuPlatform, NuTextureType
+from .files.nu import (
+    NuPlatform,
+    NuTextureType,
+    NuAlphaMode,
+    NuAnimComponent,
+    NuPlatform,
+    NuTextureType,
+)
 
 
 def import_nup(context, filepath):
@@ -172,9 +179,7 @@ def import_nup(context, filepath):
                         )
 
                 # Create transparency shader.
-                transparent_bsdf_node = node_tree.nodes.new(
-                    "ShaderNodeBsdfTransparent"
-                )
+                transparent_bsdf_node = node_tree.nodes.new("ShaderNodeBsdfTransparent")
 
                 # Link inverted alpha to transparency shader color.
                 node_tree.links.new(
@@ -184,9 +189,7 @@ def import_nup(context, filepath):
                 # Combine main shader and transparency shader.
                 add_shader_node = node_tree.nodes.new("ShaderNodeAddShader")
 
-                node_tree.links.new(
-                    source_node.outputs[0], add_shader_node.inputs[0]
-                )
+                node_tree.links.new(source_node.outputs[0], add_shader_node.inputs[0])
 
                 node_tree.links.new(
                     transparent_bsdf_node.outputs["BSDF"], add_shader_node.inputs[1]
@@ -245,9 +248,7 @@ def import_nup(context, filepath):
                 )
 
                 # Create transparency shader.
-                transparent_bsdf_node = node_tree.nodes.new(
-                    "ShaderNodeBsdfTransparent"
-                )
+                transparent_bsdf_node = node_tree.nodes.new("ShaderNodeBsdfTransparent")
 
                 node_tree.links.new(
                     alpha_invert_node.outputs[0], transparent_bsdf_node.inputs["Color"]
@@ -256,9 +257,7 @@ def import_nup(context, filepath):
                 # Combine main shader and transparency shader.
                 add_shader_node = node_tree.nodes.new("ShaderNodeAddShader")
 
-                node_tree.links.new(
-                    source_node.outputs[0], add_shader_node.inputs[0]
-                )
+                node_tree.links.new(source_node.outputs[0], add_shader_node.inputs[0])
 
                 node_tree.links.new(
                     transparent_bsdf_node.outputs["BSDF"], add_shader_node.inputs[1]
@@ -370,7 +369,9 @@ def import_nup(context, filepath):
             translation, rotation, scale = transform.decompose()
 
             def ensure_curve_for_property(prop, index):
-                return bag.fcurves.find(prop, index=index) or bag.fcurves.new(prop, index=index)
+                return bag.fcurves.find(prop, index=index) or bag.fcurves.new(
+                    prop, index=index
+                )
 
             def last_key_value(curve):
                 return curve.keyframe_points[-1].co[1]
@@ -580,8 +581,9 @@ def import_nup(context, filepath):
             if instance.anim is not None and (
                 # Sometimes, anim_idx is out of range because of stale
                 # data, so we implicitly dereference by ignoring those cases.
-                len(action_names) > instance.anim.anim_idx
-                ):
+                len(action_names)
+                > instance.anim.anim_idx
+            ):
                 action_name = action_names[instance.anim.anim_idx]
 
                 if action_name is not None:
