@@ -79,7 +79,7 @@ def import_nup(context, filepath):
 
         # Function to get the appropriate source node based on alpha mode.
         # This node will have its color input linked to the output of the
-        # color mixing node. The returned node's output will be used as the 
+        # color mixing node. The returned node's output will be used as the
         # base color for the rest of the shader.
         def get_source_node(color_mix_node):
             match material.alpha_mode():
@@ -95,8 +95,8 @@ def import_nup(context, filepath):
                     )
                     return source_node
                 case NuAlphaMode.MODE3:
-                    # Subtractive blending, equivalent to blending with black. 
-                    # Use emissive material to simulate. When we combine with 
+                    # Subtractive blending, equivalent to blending with black.
+                    # Use emissive material to simulate. When we combine with
                     # transparency later, this will produce the desired effect.
                     source_node = node_tree.nodes.new("ShaderNodeEmission")
                     source_node.inputs["Strength"].default_value = 1.0
@@ -112,7 +112,7 @@ def import_nup(context, filepath):
                     )
                     return source_node
 
-        # Build shader node tree. If there's a texture, 
+        # Build shader node tree. If there's a texture,
         # we use this for diffuse or emissive color.
         if material.texture_idx != None:
             texture_node = node_tree.nodes.new("ShaderNodeTexImage")
@@ -130,7 +130,7 @@ def import_nup(context, filepath):
             node_tree.links.new(
                 vert_color_node.outputs["Color"], color_mix_node.inputs["Color2"]
             )
-            
+
             # Grab basic color source from helper function.
             source_node = get_source_node(color_mix_node)
 
@@ -139,10 +139,10 @@ def import_nup(context, filepath):
                 "ShaderNodeOutputMaterial"
             )
 
-            # If the alpha attribute is set, we need to handle transparency. 
-            # We do so by generating a transparency shader and mixing it with 
-            # the main shader. The exact method depends on the alpha mode, but 
-            # generally we either use the texture alpha channel or the 
+            # If the alpha attribute is set, we need to handle transparency.
+            # We do so by generating a transparency shader and mixing it with
+            # the main shader. The exact method depends on the alpha mode, but
+            # generally we either use the texture alpha channel or the
             # brightness of the texture.
             if material.alpha_mode() != NuAlphaMode.NONE:
                 # Invert alpha for transparency shader, which uses 0 = opaque,
@@ -228,9 +228,9 @@ def import_nup(context, filepath):
                 "ShaderNodeOutputMaterial"
             )
 
-            # If the alpha attribute is set, we need to handle transparency. 
-            # We do so by generating a transparency shader and mixing it with 
-            # the main shader. The exact method depends on the alpha mode, but 
+            # If the alpha attribute is set, we need to handle transparency.
+            # We do so by generating a transparency shader and mixing it with
+            # the main shader. The exact method depends on the alpha mode, but
             # generally we use the vertex color alpha channel.
             if material.alpha_mode() != NuAlphaMode.NONE:
                 # Invert alpha for transparency shader, which uses 0 = opaque,
@@ -238,7 +238,7 @@ def import_nup(context, filepath):
                 alpha_invert_node = node_tree.nodes.new("ShaderNodeMath")
                 alpha_invert_node.operation = "SUBTRACT"
                 alpha_invert_node.inputs[0].default_value = 1.0
-                
+
                 # Use vertex color alpha channel in absence of texture.
                 node_tree.links.new(
                     vert_color_node.outputs["Alpha"], alpha_invert_node.inputs[1]
@@ -577,10 +577,10 @@ def import_nup(context, filepath):
 
             obj.matrix_world = transform
 
-            if instance.anim is not None and ( 
-                # Sometimes, anim_idx is out of range because of stale 
+            if instance.anim is not None and (
+                # Sometimes, anim_idx is out of range because of stale
                 # data, so we implicitly dereference by ignoring those cases.
-                len(action_names) > instance.anim.anim_idx 
+                len(action_names) > instance.anim.anim_idx
                 ):
                 action_name = action_names[instance.anim.anim_idx]
 
