@@ -8,7 +8,13 @@ import os
 from PIL import Image
 
 from .files.nup import Nup, NuPrimType, RtlSet, RtlType
-from .files.nu import NuPlatform, NuTextureType, NuAlphaMode, NuAnimComponent, NuPlatform, NuTextureType
+from .files.nu import (
+    NuAlphaMode,
+    NuAnimComponent,
+    NuPlatform,
+    NuTextureType,
+)
+from .files.ter import Ter, TerType
 
 
 def import_nup(context, filepath):
@@ -32,6 +38,11 @@ def import_nup(context, filepath):
     scene = bpy.context.scene
     scene.name = scene_name
     scene.render.fps = 60
+
+    obj_layer = scene.view_layers[0]
+
+    terrain_layer = scene.view_layers.new("Terrain")
+    terrain_layer.use = False
 
     image_names = []
     for texture in nup.textures:
@@ -172,9 +183,7 @@ def import_nup(context, filepath):
                         )
 
                 # Create transparency shader.
-                transparent_bsdf_node = node_tree.nodes.new(
-                    "ShaderNodeBsdfTransparent"
-                )
+                transparent_bsdf_node = node_tree.nodes.new("ShaderNodeBsdfTransparent")
 
                 # Link inverted alpha to transparency shader color.
                 node_tree.links.new(
@@ -184,9 +193,7 @@ def import_nup(context, filepath):
                 # Combine main shader and transparency shader.
                 add_shader_node = node_tree.nodes.new("ShaderNodeAddShader")
 
-                node_tree.links.new(
-                    source_node.outputs[0], add_shader_node.inputs[0]
-                )
+                node_tree.links.new(source_node.outputs[0], add_shader_node.inputs[0])
 
                 node_tree.links.new(
                     transparent_bsdf_node.outputs["BSDF"], add_shader_node.inputs[1]
@@ -245,9 +252,7 @@ def import_nup(context, filepath):
                 )
 
                 # Create transparency shader.
-                transparent_bsdf_node = node_tree.nodes.new(
-                    "ShaderNodeBsdfTransparent"
-                )
+                transparent_bsdf_node = node_tree.nodes.new("ShaderNodeBsdfTransparent")
 
                 node_tree.links.new(
                     alpha_invert_node.outputs[0], transparent_bsdf_node.inputs["Color"]
@@ -256,9 +261,7 @@ def import_nup(context, filepath):
                 # Combine main shader and transparency shader.
                 add_shader_node = node_tree.nodes.new("ShaderNodeAddShader")
 
-                node_tree.links.new(
-                    source_node.outputs[0], add_shader_node.inputs[0]
-                )
+                node_tree.links.new(source_node.outputs[0], add_shader_node.inputs[0])
 
                 node_tree.links.new(
                     transparent_bsdf_node.outputs["BSDF"], add_shader_node.inputs[1]
@@ -370,7 +373,9 @@ def import_nup(context, filepath):
             translation, rotation, scale = transform.decompose()
 
             def ensure_curve_for_property(prop, index):
-                return bag.fcurves.find(prop, index=index) or bag.fcurves.new(prop, index=index)
+                return bag.fcurves.find(prop, index=index) or bag.fcurves.new(
+                    prop, index=index
+                )
 
             def last_key_value(curve):
                 return curve.keyframe_points[-1].co[1]
@@ -580,8 +585,9 @@ def import_nup(context, filepath):
             if instance.anim is not None and (
                 # Sometimes, anim_idx is out of range because of stale
                 # data, so we implicitly dereference by ignoring those cases.
-                len(action_names) > instance.anim.anim_idx
-                ):
+                len(action_names)
+                > instance.anim.anim_idx
+            ):
                 action_name = action_names[instance.anim.anim_idx]
 
                 if action_name is not None:
@@ -592,9 +598,10 @@ def import_nup(context, filepath):
                     anim_data.action_slot = action.slots[0]
 
             bpy.context.collection.objects.link(obj)
+            obj.hide_set(True, view_layer=terrain_layer)
 
             if not instance.is_visible:
-                obj.hide_set(True)
+                obj.hide_set(True, view_layer=obj_layer)
 
     for spline in nup.scene.splines:
         curve = bpy.data.curves.new(spline.name, "CURVE")
@@ -605,22 +612,8 @@ def import_nup(context, filepath):
             blend_spline.points[i].co = (point.x, point.z, point.y, 0.0)
 
         obj = bpy.data.objects.new(spline.name, curve)
+        obj.color = (1.0, 0.0, 0.0, 0.0)
         bpy.context.collection.objects.link(obj)
-
-    # Case-insensitve file lookup for RTL
-    rtl_path = None
-    rtl_name = scene_name.lower() + ".rtl"
-    for file_name in os.listdir(path):
-        if file_name.lower() == rtl_name:
-            rtl_path = os.path.join(path, file_name)
-            break
-
-    if rtl_path == None:
-        return {"FINISHED"}
-
-    with open(rtl_path, "rb") as file:
-        data = file.read()
-        rtl = RtlSet(data)
 
     # Set the world background color to approximate ambient lighting.
     world = bpy.data.worlds.new("World")
@@ -670,6 +663,15 @@ def import_nup(context, filepath):
 
     scene.world = world
 
+    file = open_i(path, scene_name + ".rtl", "rb")
+    if file is None:
+        return {"FINISHED"}
+
+    data = file.read()
+    file.close()
+
+    rtl = RtlSet(data)
+
     for light in rtl.lights:
         # TODO: Figure out what the heck to do about lights other than point,
         # directional, and ambient.
@@ -706,7 +708,92 @@ def import_nup(context, filepath):
 
             bpy.context.collection.objects.link(obj)
 
+    file = open_i(path, scene_name + ".ter", "rb")
+    if file is None:
+        return {"FINISHED"}
+
+    data = file.read()
+    file.close()
+
+    ter = Ter(data)
+
+    for situ in ter.situs:
+        if situ.type == TerType.NORMAL or situ.type == TerType.PLATFORM:
+            if situ.type == TerType.NORMAL:
+                name = "Normal"
+            else:
+                name = "Platform"
+
+            for group in situ.groups:
+                for ter in group.ters:
+                    blend_mesh = bmesh.new()
+
+                    for point in ter.points:
+                        blend_mesh.verts.new((point.x, point.z, point.y))
+
+                    blend_mesh.verts.ensure_lookup_table()
+
+                    # This is an awkward way of creating the face, but order is
+                    # meaningful when the face is a quad.
+                    if len(ter.points) == 4:
+                        face = blend_mesh.faces.new(
+                            (
+                                blend_mesh.verts[0],
+                                blend_mesh.verts[1],
+                                blend_mesh.verts[3],
+                                blend_mesh.verts[2],
+                            )
+                        )
+                    else:
+                        face = blend_mesh.faces.new(
+                            (
+                                blend_mesh.verts[0],
+                                blend_mesh.verts[1],
+                                blend_mesh.verts[2],
+                            )
+                        )
+
+                    mesh = bpy.data.meshes.new(name)
+
+                    blend_mesh.to_mesh(mesh)
+                    blend_mesh.free()
+
+                    obj = bpy.data.objects.new(name, mesh)
+                    obj.location = mathutils.Vector(
+                        (situ.location.x, situ.location.z, situ.location.y)
+                    )
+
+                    bpy.context.collection.objects.link(obj)
+                    obj.hide_set(True, view_layer=obj_layer)
+        elif situ.type == TerType.WALL_SPLINE:
+            curve = bpy.data.curves.new("Wall Spline", "CURVE")
+            blend_spline = curve.splines.new("POLY")
+            blend_spline.points.add(len(situ.spline.points) - 1)
+
+            for i, point in enumerate(situ.spline.points):
+                blend_spline.points[i].co = (point.x, point.z, 0.0, 0.0)
+
+            obj = bpy.data.objects.new("Wall Spline", curve)
+
+            bpy.context.collection.objects.link(obj)
+            obj.hide_set(True, view_layer=obj_layer)
+
     return {"FINISHED"}
+
+
+def open_i(path, filename, mode):
+    filename = filename.lower()
+    real_path = None
+
+    for entry in os.listdir(path):
+        if entry.lower() == filename:
+            real_path = os.path.join(path, entry)
+            break
+
+    if real_path == None:
+        return None
+
+    return open(real_path, "rb")
 
 
 def curveset_key_for_frame(curveset, component, frame):
