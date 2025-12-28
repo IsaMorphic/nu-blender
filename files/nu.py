@@ -35,6 +35,12 @@ class NuAlphaMode(Enum):
     MODE10 = 10
 
 
+class NuAlphaTest(Enum):
+    NONE = 0
+    LESS_EQUAL = 3
+    GREATER_EQUAL = 5
+
+
 class NuMaterial:
     PLATFORM_OFFSETS = {
         NuPlatform.PC: 0x4,
@@ -44,11 +50,9 @@ class NuMaterial:
     texture_idx = None
 
     def __init__(self, data, offset, platform):
-        attributes = read_u32(
+        self.attributes = read_u32(
             data, offset + 0x3C + NuMaterial.PLATFORM_OFFSETS[platform]
         )
-
-        self.alpha_mode = NuAlphaMode(attributes & 0xF)
 
         self.diffuse = NuColour3(
             data, offset + 0x50 + NuMaterial.PLATFORM_OFFSETS[platform]
@@ -65,6 +69,23 @@ class NuMaterial:
         )
         if texture_idx != -1:
             self.texture_idx = texture_idx & 0x7FFF
+
+        self.effect_id = read_u8(data, offset + 0x9D)
+
+    def alpha_mode(self):
+        return NuAlphaMode(self.attributes & 0xF)
+
+    def alpha_test(self):
+        return NuAlphaTest((self.attributes & 0x700000) >> 20)
+
+    def alpha_ref(self):
+        return (self.attributes & 0x7F800000) >> 23
+
+    def colour(self):
+        return (self.attributes & 0x40000) >> 18
+
+    def lighting(self):
+        return (self.attributes & 0x30000) >> 16
 
 
 class NuGeom:

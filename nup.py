@@ -82,7 +82,7 @@ def import_nup(context, filepath):
         # color mixing node. The returned node's output will be used as the 
         # base color for the rest of the shader.
         def get_source_node(color_mix_node):
-            match material.alpha_mode:
+            match material.alpha_mode():
                 case NuAlphaMode.MODE2 | NuAlphaMode.MODE5:
                     # Additive blending. Use emissive material to simulate.
                     # When we combine with transparency later, this will
@@ -144,14 +144,14 @@ def import_nup(context, filepath):
             # the main shader. The exact method depends on the alpha mode, but 
             # generally we either use the texture alpha channel or the 
             # brightness of the texture.
-            if material.alpha_mode != NuAlphaMode.NONE:
+            if material.alpha_mode() != NuAlphaMode.NONE:
                 # Invert alpha for transparency shader, which uses 0 = opaque,
                 # 1 = transparent.
                 alpha_invert_node = node_tree.nodes.new("ShaderNodeMath")
                 alpha_invert_node.operation = "SUBTRACT"
                 alpha_invert_node.inputs[0].default_value = 1.0
 
-                match material.alpha_mode:
+                match material.alpha_mode():
                     case NuAlphaMode.MODE1 | NuAlphaMode.MODE10:
                         # Multiply texture alpha and material alpha.
                         alpha_mix_node = node_tree.nodes.new("ShaderNodeMath")
@@ -232,7 +232,7 @@ def import_nup(context, filepath):
             # We do so by generating a transparency shader and mixing it with 
             # the main shader. The exact method depends on the alpha mode, but 
             # generally we use the vertex color alpha channel.
-            if material.alpha_mode != NuAlphaMode.NONE:
+            if material.alpha_mode() != NuAlphaMode.NONE:
                 # Invert alpha for transparency shader, which uses 0 = opaque,
                 # 1 = transparent.
                 alpha_invert_node = node_tree.nodes.new("ShaderNodeMath")
