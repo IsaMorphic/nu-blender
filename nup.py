@@ -7,9 +7,8 @@ import mathutils
 import os
 from PIL import Image
 
-from .files.nu import NuAnimComponent, NuPlatform, NuTextureType
 from .files.nup import Nup, NuPrimType, RtlSet, RtlType
-from .files.nu import NuPlatform, NuTextureType
+from .files.nu import NuPlatform, NuTextureType, NuAlphaMode, NuAnimComponent, NuPlatform, NuTextureType
 
 
 def import_nup(context, filepath):
@@ -74,13 +73,47 @@ def import_nup(context, filepath):
             material.alpha,
         )
 
-        bsdf_node = node_tree.nodes.get("Principled BSDF") or node_tree.nodes.new(
-            "ShaderNodeBsdfPrincipled"
-        )
-
+        # Vertex color node to get vertex colors from the mesh.
         vert_color_node = node_tree.nodes.new("ShaderNodeVertexColor")
         vert_color_node.layer_name = "Col"
 
+        # Function to get the appropriate source node based on alpha mode.
+        # This node will have its color input linked to the output of the
+        # color mixing node. The returned node's output will be used as the 
+        # base color for the rest of the shader.
+        def get_source_node(color_mix_node):
+            match material.alpha_mode:
+                case NuAlphaMode.MODE2 | NuAlphaMode.MODE5:
+                    # Additive blending. Use emissive material to simulate.
+                    # When we combine with transparency later, this will
+                    # produce the desired effect.
+                    source_node = node_tree.nodes.new("ShaderNodeEmission")
+                    source_node.inputs["Strength"].default_value = 1.0
+
+                    node_tree.links.new(
+                        color_mix_node.outputs["Color"], source_node.inputs["Color"]
+                    )
+                    return source_node
+                case NuAlphaMode.MODE3:
+                    # Subtractive blending, equivalent to blending with black. 
+                    # Use emissive material to simulate. When we combine with 
+                    # transparency later, this will produce the desired effect.
+                    source_node = node_tree.nodes.new("ShaderNodeEmission")
+                    source_node.inputs["Strength"].default_value = 1.0
+                    source_node.inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+                    return source_node
+                case _:
+                    # No special handling needed. Standard alpha via lerp.
+                    source_node = node_tree.nodes.new("ShaderNodeBsdfDiffuse")
+                    source_node.inputs["Roughness"].default_value = 1.0
+
+                    node_tree.links.new(
+                        color_mix_node.outputs["Color"], source_node.inputs["Color"]
+                    )
+                    return source_node
+
+        # Build shader node tree. If there's a texture, 
+        # we use this for diffuse or emissive color.
         if material.texture_idx != None:
             texture_node = node_tree.nodes.new("ShaderNodeTexImage")
             texture_node.image = bpy.data.images[image_names[material.texture_idx]]
@@ -91,50 +124,154 @@ def import_nup(context, filepath):
             color_mix_node.blend_type = "MULTIPLY"
 
             node_tree.links.new(
-                color_mix_node.outputs["Color"], bsdf_node.inputs["Base Color"]
-            )
-
-            node_tree.links.new(
                 texture_node.outputs["Color"], color_mix_node.inputs["Color1"]
             )
 
             node_tree.links.new(
                 vert_color_node.outputs["Color"], color_mix_node.inputs["Color2"]
             )
+            
+            # Grab basic color source from helper function.
+            source_node = get_source_node(color_mix_node)
 
-            if material.is_alpha_blended:
-                # The `alpha` attribute is set, so blend the alpha channels as
-                # well.
-                alpha_mix_node = node_tree.nodes.new("ShaderNodeMix")
-                alpha_mix_node.blend_type = "MULTIPLY"
-                alpha_mix_node.data_type = "FLOAT"
-
-                node_tree.links.new(
-                    alpha_mix_node.outputs["Result"], bsdf_node.inputs["Alpha"]
-                )
-
-                node_tree.links.new(
-                    texture_node.outputs["Alpha"], alpha_mix_node.inputs["A"]
-                )
-
-                node_tree.links.new(
-                    vert_color_node.outputs["Alpha"], alpha_mix_node.inputs["B"]
-                )
-
+            # Initialize output node.
             output_node = node_tree.nodes.get("Material Output") or node_tree.nodes.new(
                 "ShaderNodeOutputMaterial"
             )
-            node_tree.links.new(
-                bsdf_node.outputs["BSDF"], output_node.inputs["Surface"]
-            )
+
+            # If the alpha attribute is set, we need to handle transparency. 
+            # We do so by generating a transparency shader and mixing it with 
+            # the main shader. The exact method depends on the alpha mode, but 
+            # generally we either use the texture alpha channel or the 
+            # brightness of the texture.
+            if material.alpha_mode != NuAlphaMode.NONE:
+                # Invert alpha for transparency shader, which uses 0 = opaque,
+                # 1 = transparent.
+                alpha_invert_node = node_tree.nodes.new("ShaderNodeMath")
+                alpha_invert_node.operation = "SUBTRACT"
+                alpha_invert_node.inputs[0].default_value = 1.0
+
+                match material.alpha_mode:
+                    case NuAlphaMode.MODE1 | NuAlphaMode.MODE10:
+                        # Multiply texture alpha and material alpha.
+                        alpha_mix_node = node_tree.nodes.new("ShaderNodeMath")
+                        alpha_mix_node.operation = "MULTIPLY"
+                        alpha_mix_node.inputs[0].default_value = material.alpha
+
+                        node_tree.links.new(
+                            texture_node.outputs["Alpha"], alpha_mix_node.inputs[1]
+                        )
+
+                        node_tree.links.new(
+                            alpha_mix_node.outputs[0], alpha_invert_node.inputs[1]
+                        )
+                    case _:
+                        # Interpret pixel brightness of texture as alpha.
+                        node_tree.links.new(
+                            texture_node.outputs["Color"], alpha_invert_node.inputs[1]
+                        )
+
+                # Create transparency shader.
+                transparent_bsdf_node = node_tree.nodes.new(
+                    "ShaderNodeBsdfTransparent"
+                )
+
+                # Link inverted alpha to transparency shader color.
+                node_tree.links.new(
+                    alpha_invert_node.outputs[0], transparent_bsdf_node.inputs["Color"]
+                )
+
+                # Combine main shader and transparency shader.
+                add_shader_node = node_tree.nodes.new("ShaderNodeAddShader")
+
+                node_tree.links.new(
+                    source_node.outputs[0], add_shader_node.inputs[0]
+                )
+
+                node_tree.links.new(
+                    transparent_bsdf_node.outputs["BSDF"], add_shader_node.inputs[1]
+                )
+
+                # Link combined shader to output.
+                node_tree.links.new(
+                    add_shader_node.outputs["Shader"], output_node.inputs["Surface"]
+                )
+            else:
+                # No transparency; link directly.
+                node_tree.links.new(
+                    source_node.outputs[0], output_node.inputs["Surface"]
+                )
+        # Otherwise, we just use vertex color for the diffuse/emissive color.
+        # We also mix with the material color to avoid pure white in some specific cases.
         else:
-            node_tree.links.new(
-                vert_color_node.outputs["Color"], bsdf_node.inputs["Base Color"]
+            color_mix_node = node_tree.nodes.new("ShaderNodeMixRGB")
+            color_mix_node.blend_type = "MULTIPLY"
+
+            # Mix with material color to avoid pure white.
+            color_mix_node.inputs["Color1"].default_value = (
+                material.diffuse.r,
+                material.diffuse.g,
+                material.diffuse.b,
+                material.alpha,
             )
 
-            if material.is_alpha_blended:
+            node_tree.links.new(
+                vert_color_node.outputs["Color"], color_mix_node.inputs["Color2"]
+            )
+
+            # Grab basic color source from helper function.
+            # Will be either diffuse or emissive shader.
+            source_node = get_source_node(color_mix_node)
+
+            # Initialize output node.
+            output_node = node_tree.nodes.get("Material Output") or node_tree.nodes.new(
+                "ShaderNodeOutputMaterial"
+            )
+
+            # If the alpha attribute is set, we need to handle transparency. 
+            # We do so by generating a transparency shader and mixing it with 
+            # the main shader. The exact method depends on the alpha mode, but 
+            # generally we use the vertex color alpha channel.
+            if material.alpha_mode != NuAlphaMode.NONE:
+                # Invert alpha for transparency shader, which uses 0 = opaque,
+                # 1 = transparent.
+                alpha_invert_node = node_tree.nodes.new("ShaderNodeMath")
+                alpha_invert_node.operation = "SUBTRACT"
+                alpha_invert_node.inputs[0].default_value = 1.0
+                
+                # Use vertex color alpha channel in absence of texture.
                 node_tree.links.new(
-                    vert_color_node.outputs["Alpha"], bsdf_node.inputs["Alpha"]
+                    vert_color_node.outputs["Alpha"], alpha_invert_node.inputs[1]
+                )
+
+                # Create transparency shader.
+                transparent_bsdf_node = node_tree.nodes.new(
+                    "ShaderNodeBsdfTransparent"
+                )
+
+                node_tree.links.new(
+                    alpha_invert_node.outputs[0], transparent_bsdf_node.inputs["Color"]
+                )
+
+                # Combine main shader and transparency shader.
+                add_shader_node = node_tree.nodes.new("ShaderNodeAddShader")
+
+                node_tree.links.new(
+                    source_node.outputs[0], add_shader_node.inputs[0]
+                )
+
+                node_tree.links.new(
+                    transparent_bsdf_node.outputs["BSDF"], add_shader_node.inputs[1]
+                )
+
+                # Link combined shader to output.
+                node_tree.links.new(
+                    add_shader_node.outputs["Shader"], output_node.inputs["Surface"]
+                )
+            else:
+                # No transparency; link directly.
+                node_tree.links.new(
+                    source_node.outputs[0], output_node.inputs["Surface"]
                 )
 
     action_names = []

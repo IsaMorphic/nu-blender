@@ -25,6 +25,16 @@ class NuTextureHeader:
         self.data_offset = read_u32(data, offset + 0x10)
 
 
+class NuAlphaMode(Enum):
+    NONE = 0
+    MODE1 = 1
+    MODE2 = 2
+    MODE3 = 3
+    MODE5 = 5
+    MODE7 = 7
+    MODE10 = 10
+
+
 class NuMaterial:
     PLATFORM_OFFSETS = {
         NuPlatform.PC: 0x4,
@@ -38,7 +48,7 @@ class NuMaterial:
             data, offset + 0x3C + NuMaterial.PLATFORM_OFFSETS[platform]
         )
 
-        self.is_alpha_blended = (attributes & 0xF) != 0
+        self.alpha_mode = NuAlphaMode(attributes & 0xF)
 
         self.diffuse = NuColour3(
             data, offset + 0x50 + NuMaterial.PLATFORM_OFFSETS[platform]
