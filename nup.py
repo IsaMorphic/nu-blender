@@ -808,6 +808,7 @@ def import_nup(context, filepath):
 
                     bpy.context.collection.objects.link(obj)
                     obj.hide_set(True, view_layer=obj_layer)
+                    obj.hide_render = True
         elif situ.type == TerType.WALL_SPLINE:
             curve = bpy.data.curves.new("Wall Spline", "CURVE")
             blend_spline = curve.splines.new("POLY")
@@ -820,6 +821,7 @@ def import_nup(context, filepath):
 
             bpy.context.collection.objects.link(obj)
             obj.hide_set(True, view_layer=obj_layer)
+            obj.hide_render = True
 
     return {"FINISHED"}
 
