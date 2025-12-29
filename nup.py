@@ -64,8 +64,10 @@ def import_nup(context, filepath):
             )
         image_data = image.getdata()
 
-        blend_img = bpy.data.images.new("Texture", texture.width, texture.height)
+        blend_img = bpy.data.images.new("Texture", texture.width, texture.height, alpha=True)
         blend_img.pixels = [item / 255.0 for t in image_data for item in t]
+        blend_img.file_format = "PNG"
+        blend_img.pack()
 
         image_names.append(blend_img.name)
 
