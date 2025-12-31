@@ -1,6 +1,5 @@
 import bmesh
 import bpy
-from enum import Enum
 import io
 import math
 import mathutils
@@ -13,7 +12,6 @@ from .files.nu import (
     NuAlphaTest,
     NuAlphaTestMapping,
     NuAnimComponent,
-    NuPlatform,
     NuTextureType,
 )
 from .files.ter import Ter, TerType
@@ -23,17 +21,10 @@ def import_nup(context, filepath):
     (path, filename) = os.path.split(filepath)
     (scene_name, ext) = os.path.splitext(filename)
 
-    # Detect scene format from file extension
-    match ext.lower():
-        case ".nup":
-            platform = NuPlatform.PC
-        case ".nux":
-            platform = NuPlatform.XBOX
-
     # Load scene files, including scene definition, lights, and configuration.
     with open(filepath, "rb") as file:
         data = file.read()
-        nup = Nup(data, platform)
+        nup = Nup(data)
 
     bpy.ops.scene.new()
 
@@ -74,7 +65,7 @@ def import_nup(context, filepath):
         image_names.append(blend_img.name)
 
     # Get alpha test mapping for platform.
-    atst_mapping = NuAlphaTestMapping.PLATFORM_MAPPING[platform]
+    atst_mapping = NuAlphaTestMapping.PLATFORM_MAPPING[nup.platform]
 
     material_names = []
     for material in nup.materials:

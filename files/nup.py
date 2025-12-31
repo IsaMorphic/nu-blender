@@ -9,7 +9,7 @@ from .read import *
 class Nup:
     HEADER_SIZE = 0x40
 
-    def __init__(self, data, platform):
+    def __init__(self, data):
         header = NupHeader(data)
         body = data[0x40:]
 
@@ -18,6 +18,7 @@ class Nup:
         texture_data_size = read_u32(body, header.texture_hdr_offset + 0x04)
         textures_count = read_i32(body, header.texture_hdr_offset + 0x08)
 
+        ddsFlag = False
         self.textures = []
         for i in range(textures_count):
             texture_header = NuTextureHeader(
@@ -46,9 +47,17 @@ class Nup:
                 + texture_header.data_offset
             )
 
+            if texture_header.type == NuTextureType.DDS:
+                ddsFlag = True
+
             self.textures.append(
                 Texture(body, offset_in_body, size_estimate, texture_header)
             )
+
+        if ddsFlag:
+            self.platform = NuPlatform.PC
+        else:
+            self.platform = NuPlatform.XBOX
 
         # Load materials.
         materials_count = read_i32(body, header.materials_offset)
@@ -57,7 +66,7 @@ class Nup:
         for i in range(materials_count):
             material_offset = read_u32(body, header.materials_offset + 0x04 + i * 0x04)
 
-            self.materials.append(NuMaterial(body, material_offset, platform))
+            self.materials.append(NuMaterial(body, material_offset, self.platform))
 
         # Load vertex data.
         vertex_bufs_count = read_i32(body, header.vertex_data_offset)
