@@ -6,6 +6,9 @@ from .nu import *
 from .read import *
 
 
+class NuPlatformException(Exception):
+    pass
+
 class Nup:
     HEADER_SIZE = 0x40
 
@@ -20,6 +23,7 @@ class Nup:
 
         # Determine if all textures are DDS to infer platform.
         isPCFlag = True
+        isXboxFlag = True
         self.textures = []
         for i in range(textures_count):
             texture_header = NuTextureHeader(
@@ -48,8 +52,9 @@ class Nup:
                 + texture_header.data_offset
             )
 
-            # Check if texture is DDS. If not, assume we're on Xbox from now on.
+            # Check if texture is DDS. Used to determine platform.
             isPCFlag = isPCFlag and texture_header.type == NuTextureType.DDS
+            isXboxFlag = isXboxFlag and texture_header.type != NuTextureType.DDS
 
             self.textures.append(
                 Texture(body, offset_in_body, size_estimate, texture_header)
@@ -58,8 +63,10 @@ class Nup:
         # Determine platform from texture hints.
         if isPCFlag:
             self.platform = NuPlatform.PC
-        else:
+        elif isXboxFlag:
             self.platform = NuPlatform.XBOX
+        else:
+            raise NuPlatformException("Mixed texture types found; cannot determine platform.")
 
         # Load materials.
         materials_count = read_i32(body, header.materials_offset)
