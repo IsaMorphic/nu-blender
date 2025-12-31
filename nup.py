@@ -64,7 +64,9 @@ def import_nup(context, filepath):
             )
         image_data = image.getdata()
 
-        blend_img = bpy.data.images.new("Texture", texture.width, texture.height, alpha=True)
+        blend_img = bpy.data.images.new(
+            "Texture", texture.width, texture.height, alpha=True
+        )
         blend_img.pixels = [item / 255.0 for t in image_data for item in t]
         blend_img.file_format = "PNG"
         blend_img.pack()
@@ -331,11 +333,15 @@ def import_nup(context, filepath):
         action = bpy.data.actions.new("Anim Data")
         action_names.append(action.name)
 
-        object_slot = action.slots.new("OBJECT", "Anim Data")
-
-        layer = action.layers.new("Anim Data")
-        strip = layer.strips.new()
-        bag = strip.channelbag(object_slot, ensure=True)
+        # Only use slots API for Blender 4.4 and above.
+        if bpy.app.version < (4, 4, 0):
+            fcurves = action.fcurves
+        else:
+            object_slot = action.slots.new("OBJECT", "Anim Data")
+            layer = action.layers.new("Anim Data")
+            strip = layer.strips.new()
+            bag = strip.channelbag(object_slot, ensure=True)
+            fcurves = bag.fcurves
 
         anim_length = math.floor(anim.length)
         for frame in range(anim_length):
@@ -418,9 +424,7 @@ def import_nup(context, filepath):
             translation, rotation, scale = transform.decompose()
 
             def ensure_curve_for_property(prop, index):
-                return bag.fcurves.find(prop, index=index) or bag.fcurves.new(
-                    prop, index=index
-                )
+                return fcurves.find(prop, index=index) or fcurves.new(prop, index=index)
 
             def last_key_value(curve):
                 return curve.keyframe_points[-1].co[1]
@@ -638,9 +642,11 @@ def import_nup(context, filepath):
                 if action_name is not None:
                     anim_data = obj.animation_data_create()
                     action = bpy.data.actions[action_name]
-
                     anim_data.action = action
-                    anim_data.action_slot = action.slots[0]
+
+                    # Set the action slot for Blender 4.4 and above.
+                    if bpy.app.version >= (4, 4, 0):
+                        anim_data.action_slot = action.slots[0]
 
             bpy.context.collection.objects.link(obj)
             obj.hide_set(True, view_layer=terrain_layer)
