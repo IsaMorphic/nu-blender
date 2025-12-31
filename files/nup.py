@@ -18,7 +18,8 @@ class Nup:
         texture_data_size = read_u32(body, header.texture_hdr_offset + 0x04)
         textures_count = read_i32(body, header.texture_hdr_offset + 0x08)
 
-        ddsFlag = False
+        # Determine if all textures are DDS to infer platform.
+        isPCFlag = True
         self.textures = []
         for i in range(textures_count):
             texture_header = NuTextureHeader(
@@ -47,14 +48,15 @@ class Nup:
                 + texture_header.data_offset
             )
 
-            if texture_header.type == NuTextureType.DDS:
-                ddsFlag = True
+            # Check if texture is DDS. If not, assume we're on Xbox from now on.
+            isPCFlag = isPCFlag and texture_header.type == NuTextureType.DDS
 
             self.textures.append(
                 Texture(body, offset_in_body, size_estimate, texture_header)
             )
 
-        if ddsFlag:
+        # Determine platform from texture hints.
+        if isPCFlag:
             self.platform = NuPlatform.PC
         else:
             self.platform = NuPlatform.XBOX
