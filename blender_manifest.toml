@@ -71,7 +71,11 @@ wheels = [
 paths_exclude_pattern = [
   "__pycache__/",
   "/.git/",
+  ".gitignore",
+  "analyze.py",
   "*.zip",
   "*.md",
   "*.webp",
+  "*.sh",
+  "*.ps1"
 ]
