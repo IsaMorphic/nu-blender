@@ -12,19 +12,33 @@ from .files.nu import (
     NuAlphaTest,
     NuAlphaTestMapping,
     NuAnimComponent,
+    NuPlatform,
     NuTextureType,
 )
 from .files.ter import Ter, TerType
 
 
-def import_nup(context, filepath):
-    (path, filename) = os.path.split(filepath)
+def import_nup(context, operator : bpy.types.Operator):
+    (path, filename) = os.path.split(operator.filepath)
     (scene_name, ext) = os.path.splitext(filename)
 
     # Load scene files, including scene definition, lights, and configuration.
-    with open(filepath, "rb") as file:
+    with open(operator.filepath, "rb") as file:
         data = file.read()
         nup = Nup(data)
+
+    # Detect scene format from file extension
+    match ext.lower():
+        case ".nup":
+            platform = NuPlatform.PC
+        case ".nux":
+            platform = NuPlatform.XBOX
+    
+    # Warn if platform doesn't match.
+    if nup.platform != platform:
+        operator.report({"WARNING"},
+            f"Warning: Detected platform {nup.platform} does not match expected platform {platform} based on file extension."
+        )
 
     bpy.ops.scene.new()
 
