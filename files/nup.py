@@ -22,8 +22,8 @@ class Nup:
         textures_count = read_i32(body, header.texture_hdr_offset + 0x08)
 
         # Determine if all textures are DDS to infer platform.
-        isPCFlag = True
-        isXboxFlag = True
+        is_pc = True
+        is_xbox = True
         self.textures = []
         for i in range(textures_count):
             texture_header = NuTextureHeader(
@@ -53,19 +53,21 @@ class Nup:
             )
 
             # Check if texture is DDS. Used to determine platform.
-            isPCFlag = isPCFlag and texture_header.type == NuTextureType.DDS
-            isXboxFlag = isXboxFlag and texture_header.type != NuTextureType.DDS
+            is_pc = is_pc and texture_header.type == NuTextureType.DDS
+            is_xbox = is_xbox and texture_header.type != NuTextureType.DDS
 
             self.textures.append(
                 Texture(body, offset_in_body, size_estimate, texture_header)
             )
 
         # Determine platform from texture hints.
-        if isPCFlag:
-            self.platform = NuPlatform.PC
-        elif isXboxFlag:
-            self.platform = NuPlatform.XBOX
-        else:
+        if is_pc and is_xbox:
+            self.platform = None # No textures present.
+        elif is_pc:
+            self.platform = NuPlatform.PC # All textures are DDS.
+        elif is_xbox:
+            self.platform = NuPlatform.XBOX # No DDS textures.
+        else: # Mixed textures.
             raise NuPlatformException("Mixed texture types found; cannot determine platform.")
 
         # Load materials.
