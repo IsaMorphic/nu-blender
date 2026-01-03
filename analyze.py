@@ -5,33 +5,13 @@ from files.nu import NuPlatform
 from files.nup import Nup
 
 
-class PlatformInfo:
-    PLATFORM_INFO = {
-        "pc": {
-            "ext": ".nup",
-            "platform": NuPlatform.PC,
-        },
-        "xbox": {
-            "ext": ".nux",
-            "platform": NuPlatform.XBOX,
-        },
-    }
-
-    def __init__(self, platform: str):
-        platform_info = PlatformInfo.PLATFORM_INFO[platform]
-        self.ext = platform_info["ext"]
-        self.platform = platform_info["platform"]
-
-
 def main():
     parser = argparse.ArgumentParser(prog="nu-analyze")
     parser.add_argument("data_path")
-    parser.add_argument("--platform", choices=["xbox", "pc"], required=True)
 
     args = parser.parse_args()
 
-    platform_info = PlatformInfo(args.platform)
-    nup_paths = scan_dir(args.data_path, platform_info.ext)
+    nup_paths = scan_dir(args.data_path)
 
     alpha_modes = {}
     alpha_tests = {}
@@ -40,10 +20,21 @@ def main():
     lightings = {}
     for nup_path in nup_paths:
         nup_name = os.path.basename(nup_path)
+
+        # Infer platform from file extension as a fallback.
+        (scene_name, ext) = os.path.splitext(nup_name)
+        match ext.lower():
+            case ".nup":
+                nup_platform = NuPlatform.PC
+            case ".nux":
+                nup_platform = NuPlatform.XBOX
+            case _:
+                nup_platform = None
+
         with open(nup_path, "rb") as file:
             data = file.read()
             try:
-                nup = Nup(data, platform_info.platform)
+                nup = Nup(data, platform=nup_platform)
             except:
                 print("Failed to parse: {}".format(nup_name))
                 continue
@@ -81,15 +72,16 @@ def main():
     print("fxid: {}".format(effect_ids))
 
 
-def scan_dir(path: str, match_ext: str):
+def scan_dir(path: str):
     nups = []
     for entry in os.scandir(path):
         if entry.is_dir():
-            nups += scan_dir(entry.path, match_ext)
+            nups += scan_dir(entry.path)
         elif entry.is_file():
             _, ext = os.path.splitext(entry.path)
-            if ext.lower() == match_ext.lower():
-                nups.append(entry.path)
+            match ext.lower():
+                case ".nup" | ".nux":
+                    nups.append(entry.path)
 
     return nups
 

@@ -42,7 +42,7 @@ class NupImport(Operator, ImportHelper):
         Image.register_decoder("DXT5", DXT5Decoder)
 
         from .nup import import_nup
-        return import_nup(context, self.filepath)
+        return import_nup(context, self)
 
 
 def menu_func_import(self, context):
