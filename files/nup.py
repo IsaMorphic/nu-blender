@@ -9,10 +9,11 @@ from .read import *
 class NuPlatformException(Exception):
     pass
 
+
 class Nup:
     HEADER_SIZE = 0x40
 
-    def __init__(self, data):
+    def __init__(self, data, platform=None):
         header = NupHeader(data)
         body = data[0x40:]
 
@@ -62,13 +63,15 @@ class Nup:
 
         # Determine platform from texture hints.
         if is_pc and is_xbox:
-            self.platform = None # No textures present.
+            self.platform = None  # No textures present.
         elif is_pc:
-            self.platform = NuPlatform.PC # All textures are DDS.
+            self.platform = NuPlatform.PC  # All textures are DDS.
         elif is_xbox:
-            self.platform = NuPlatform.XBOX # No DDS textures.
-        else: # Mixed textures.
-            raise NuPlatformException("Mixed texture types found; cannot determine platform.")
+            self.platform = NuPlatform.XBOX  # No DDS textures.
+        else:  # Mixed textures.
+            raise NuPlatformException(
+                "Mixed texture types found; cannot determine platform."
+            )
 
         # Load materials.
         materials_count = read_i32(body, header.materials_offset)
@@ -77,7 +80,7 @@ class Nup:
         for i in range(materials_count):
             material_offset = read_u32(body, header.materials_offset + 0x04 + i * 0x04)
 
-            self.materials.append(NuMaterial(body, material_offset, self.platform))
+            self.materials.append(NuMaterial(body, material_offset, self.platform or platform))
 
         # Load vertex data.
         vertex_bufs_count = read_i32(body, header.vertex_data_offset)

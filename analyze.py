@@ -20,10 +20,21 @@ def main():
     lightings = {}
     for nup_path in nup_paths:
         nup_name = os.path.basename(nup_path)
+
+        # Infer platform from file extension as a fallback.
+        (scene_name, ext) = os.path.splitext(nup_name)
+        match ext.lower():
+            case ".nup":
+                nup_platform = NuPlatform.PC
+            case ".nux":
+                nup_platform = NuPlatform.XBOX
+            case _:
+                nup_platform = None
+
         with open(nup_path, "rb") as file:
             data = file.read()
             try:
-                nup = Nup(data)
+                nup = Nup(data, platform=nup_platform)
             except:
                 print("Failed to parse: {}".format(nup_name))
                 continue
